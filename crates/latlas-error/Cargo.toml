@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+[package]
+name = "latlas-error"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Latlas: the CERF error registry (u16 ErrorCode, registered forms, pointer-sized Error). no_std + alloc, no dependencies."
+
+[dependencies]
+
+[lints]
+workspace = true

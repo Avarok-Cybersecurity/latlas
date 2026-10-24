@@ -1,0 +1,34 @@
+# Append-only record of every ErrorCode: one `0xnnnn Name` line per variant, ascending.
+# Never renumber, rename or remove a line. tests/codes_lock.rs enforces it.
+0x0000 Generic
+0x0001 Io
+0x0002 InvalidArgument
+0x0003 NotImplemented
+0x0004 Unavailable
+0x0100 LatlasDanglingRef
+0x0101 LatlasDuplicateId
+0x0102 LatlasIdCollision
+0x0103 LatlasBadLedgerRow
+0x0104 LatlasBadRow
+0x0105 LatlasTooManyLabels
+0x0106 LatlasSecretRedacted
+0x0107 LatlasBadClaim
+0x0108 LatlasBadId
+0x0109 LatlasForwardLink
+0x010a LatlasInventoryRefused
+0x010b LatlasInventoryProblem
+0x010c LatlasLkbFileRejected
+0x0110 LatlasConfig
+0x0111 LatlasSource
+0x0112 LatlasValidatorRejected
+0x0113 LatlasRecordWrite
+0x0114 LatlasStaleBundle
+0x0120 LatlasEmbedderUnavailable
+0x0121 LatlasEmbedRateLimited
+0x0122 LatlasEmbedProtocol
+0x0123 LatlasEmbedDim
+0x0124 LatlasEmbedderFault
+0x0130 LatlasCypherRejected
+0x0131 LatlasStore
+0x0132 LatlasToolArgument
+0x0133 LatlasUnknownId

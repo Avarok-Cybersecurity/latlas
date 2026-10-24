@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Avarok-Cybersecurity/latlas"
+
+[workspace.dependencies]
+latlas-error = { path = "crates/latlas-error" }
+latlas-ports = { path = "crates/latlas-ports" }
+latlas-core = { path = "crates/latlas-core" }
+latlas-adapters = { path = "crates/latlas-adapters" }
+latlas-cli = { path = "crates/latlas-cli" }
+latlas-host-native = { path = "crates/latlas-host-native" }
+latlas-index = { path = "crates/latlas-index" }
+lattice-core = { version = "=0.3.4", package = "latticedb-core", default-features = false }
+lattice-storage = { version = "=0.3.4", package = "latticedb-storage", default-features = false }
+anyhow = { version = "1", default-features = false }
+clap = { version = "4", default-features = false }
+rmcp = { version = "0.16", default-features = false }
+libm = { version = "0.2", default-features = false }
+serde = { version = "1", default-features = false }
+serde_json = { version = "1", default-features = false }
+sha2 = { version = "0.11", default-features = false }
+tokio = { version = "1", default-features = false }
+ureq = { version = "3", default-features = false }
+toml = { version = "1.1", default-features = false }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

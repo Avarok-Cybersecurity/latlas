@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+[package]
+name = "latlas-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Latlas: the command line and the 5-tool MCP server as a library, generic over one pack and its process host."
+
+[dependencies]
+anyhow = { workspace = true, features = ["std"] }
+clap = { workspace = true, features = ["std", "derive", "help", "usage", "error-context"] }
+latlas-core = { workspace = true }
+latlas-error = { workspace = true }
+latlas-host-native = { workspace = true }
+latlas-index = { workspace = true }
+latlas-ports = { workspace = true }
+rmcp = { workspace = true, features = ["server", "transport-io"] }
+serde_json = { workspace = true, features = ["std"] }
+tokio = { workspace = true, features = ["rt", "macros", "io-std", "sync", "time"] }
+
+# 2026-10-23: The bounded-search test serves a scripted embeddings endpoint on loopback and
+# defines a one-label test pack.
+[dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util", "time"] }
+
+[lints]
+workspace = true
