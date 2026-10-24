@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+[package]
+name = "latlas-check"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Latlas: the integrity score vector over a bundle and the per-dimension ratchet between a base and a head bundle (DESIGN-latlas-check.md). no_std + alloc, no I/O."
+
+[dependencies]
+latlas-core = { workspace = true }
+latlas-error = { workspace = true }
+serde = { workspace = true, features = ["alloc", "derive"] }
+serde_json = { workspace = true, features = ["alloc"] }
+toml = { workspace = true, features = ["serde", "parse"] }
+
+[lints]
+workspace = true

@@ -10,6 +10,7 @@ description = "Latlas: the command line and the 5-tool MCP server as a library, 
 [dependencies]
 anyhow = { workspace = true, features = ["std"] }
 clap = { workspace = true, features = ["std", "derive", "help", "usage", "error-context"] }
+latlas-check = { workspace = true }
 latlas-core = { workspace = true }
 latlas-error = { workspace = true }
 latlas-host-native = { workspace = true }
