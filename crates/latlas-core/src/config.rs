@@ -163,3 +163,38 @@ impl<S> Config<S> {
         ))
     }
 }
+
+/// 2026-10-24: Resolve a repository config's relative paths against `repo` (the directory holding
+/// `.latlas/`; native: its absolute path, browser: the virtual root): `sources.root = "."` becomes
+/// `repo`, and a relative `store.data_dir` / `store.scratch_dir` is joined to it. A config whose
+/// root is not `"."` is returned unchanged (the core refuses any other relative root). Pure, so
+/// every host resolves the same way (HPAR).
+pub fn resolve_repo_paths(text: &str, repo: &str) -> Result<Option<String>> {
+    let mut t: toml::Table = text
+        .parse()
+        .map_err(|e: toml::de::Error| error!(ErrorCode::LatlasConfig, "(file)", e.to_string()))?;
+    let dot = t
+        .get("sources")
+        .and_then(|s| s.get("root"))
+        .and_then(toml::Value::as_str)
+        == Some(".");
+    if !dot {
+        return Ok(None);
+    }
+    let join = |rel: &str| format!("{}/{}", repo.trim_end_matches('/'), rel.trim_start_matches("./"));
+    if let Some(toml::Value::Table(s)) = t.get_mut("sources") {
+        s.insert("root".into(), toml::Value::String(repo.to_string()));
+    }
+    if let Some(toml::Value::Table(s)) = t.get_mut("store") {
+        for k in ["data_dir", "scratch_dir"] {
+            if let Some(toml::Value::String(v)) = s.get_mut(k)
+                && !v.starts_with('/')
+            {
+                *v = join(v);
+            }
+        }
+    }
+    toml::to_string(&t)
+        .map(Some)
+        .map_err(|e| error!(ErrorCode::LatlasConfig, "(file)", e.to_string()))
+}

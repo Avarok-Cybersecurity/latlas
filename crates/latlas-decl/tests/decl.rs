@@ -5,7 +5,7 @@
 //! crate without a test owes one.
 
 use latlas_check::dims::Dim;
-use latlas_check::{CheckConfig, score};
+use latlas_check::{CheckConfig, CheckFacts, score};
 use latlas_core::id::NodeId;
 use latlas_core::{Config, SourceSet, derive};
 use latlas_decl::Decl;
@@ -47,7 +47,7 @@ w_kind = 0.15
 python = "/usr/bin/python3"
 "##;
 
-const CHECK: &str = "schema = \"latlas-check/v1\"\n[weights]\nchurn = \"off\"\nimportance = [{ prefix = \"\", value = 1.0 }]\npagerank = { damping = 0.85, iterations = 30 }\n[ratchet.epsilon]\nF = 0.0\nR = 0.0\nC = 0.0\nG = 0.0\nP = 0.0\nS = 0.0\nH = 0.0\nT = 0.0\nX = 0.0\nO = 0.0\n";
+const CHECK: &str = "schema = \"latlas-check/v1\"\n[weights]\nchurn = \"off\"\nimportance = [{ prefix = \"\", value = 1.0 }]\npagerank = { damping = 0.85, iterations = 30 }\n[window]\ndays = 30\n[prose]\nweight = 0.5\n[ratchet.epsilon]\nF = 0.0\nR = 0.0\nC = 0.0\nG = 0.0\nP = 0.0\nS = 0.0\nH = 0.0\nT = 0.0\nX = 0.0\nO = 0.0\n";
 
 fn repo(log: &str) -> SourceSet {
     let mut s = SourceSet::default();
@@ -89,10 +89,10 @@ fn rows_and_crates_derive_and_an_untested_published_crate_owes_a_test() {
     assert_eq!(row.p["Optimization"], "Slice entry");
     assert_eq!(row.src, "LOG.md:7");
     assert!(b.out(&id("crate:a"), latlas_core::id::core_rels::GatedBy).any(|e| e.to == id("gate:test/a::adds")));
-    let s = score::<Decl>(&b, None, &CheckConfig::parse(CHECK).unwrap()).unwrap();
+    let s = score::<Decl>(&b, None, &CheckConfig::parse(CHECK).unwrap(), &CheckFacts::default()).unwrap();
     let o = s.get(Dim::O).unwrap();
     let owing: Vec<_> = o.contributors.iter().map(|c| c.id.clone()).collect();
-    assert_eq!(owing, vec![id("crate:b")], "c is unpublished, a is tested");
+    assert_eq!(owing, vec![id("crate:b").to_string()], "c is unpublished, a is tested");
     assert_eq!(s.get(Dim::C).unwrap().value, Some(0.0), "rows without claims cover nothing");
 }
 

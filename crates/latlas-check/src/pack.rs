@@ -21,6 +21,18 @@ pub struct Obligation {
     pub missing: Vec<String>,
 }
 
+/// 2026-10-24: A record's contradiction key (check part §1 X): what it is about (`subject`), which
+/// property (`slot`), where it holds (`scope`), and what it says (`value`). Two live records with
+/// one key and different values contradict, unless one supersedes or retracts the other or a
+/// Decision settles both.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Key {
+    pub subject: String,
+    pub slot: String,
+    pub scope: String,
+    pub value: String,
+}
+
 /// 2026-10-23: The pack's side of the score.
 pub trait Checks: Pack {
     /// Whether `n` bears an outcome that should be backed by a gated claim.
@@ -32,4 +44,7 @@ pub trait Checks: Pack {
     fn retraction_has_reason(b: &Bundle, r: &NodeId) -> bool;
     /// Every subject the pack's obligation rules match, met or not.
     fn obligations(b: &Bundle) -> Vec<Obligation>;
+    /// The contradiction key of a Claim or Decision `n`, or `None` when the pack cannot key it
+    /// (counted and listed as `unkeyed`, never scored; never an embedding).
+    fn key(b: &Bundle, n: &Node) -> Option<Key>;
 }

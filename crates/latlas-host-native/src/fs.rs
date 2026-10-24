@@ -124,35 +124,22 @@ pub fn read_config<P: Pack>(path: &Path) -> Result<Config<P::Sources>> {
 }
 
 /// 2026-10-24: `sources.root = "."` declares "the repository whose `.latlas/` holds this file", so
-/// a config committed in a repo needs no absolute path; the host resolves it here, once. Any other
-/// relative root is refused by the core (it must be absolute).
+/// a committed config needs no absolute path; resolved once here through the core's
+/// [`latlas_core::config::resolve_repo_paths`] (with relative store paths).
 fn resolve_dot_root(text: &str, path: &Path, shown: &str) -> Result<String> {
-    let mut t: toml::Table = text
-        .parse()
-        .map_err(|e: toml::de::Error| error!(ErrorCode::LatlasConfig, shown.to_string(), e.to_string()))?;
-    let dot = t
-        .get("sources")
-        .and_then(|s| s.get("root"))
-        .and_then(toml::Value::as_str)
-        == Some(".");
-    if !dot {
-        return Ok(text.to_string());
-    }
     let dir = path.parent().filter(|d| d.file_name().is_some_and(|n| n == ".latlas"));
-    let Some(repo) = dir.and_then(Path::parent) else {
-        return Err(error!(
-            ErrorCode::LatlasConfig,
-            shown.to_string(),
-            "sources.root = \".\" is only valid for a config inside a `.latlas/` directory"
-        ));
-    };
-    if let Some(toml::Value::Table(s)) = t.get_mut("sources") {
-        s.insert(
-            "root".into(),
-            toml::Value::String(repo.to_string_lossy().into_owned()),
-        );
+    match dir.and_then(Path::parent) {
+        Some(repo) => Ok(latlas_core::config::resolve_repo_paths(text, &repo.to_string_lossy())?
+            .unwrap_or_else(|| text.to_string())),
+        None => match latlas_core::config::resolve_repo_paths(text, "/")? {
+            None => Ok(text.to_string()),
+            Some(_) => Err(error!(
+                ErrorCode::LatlasConfig,
+                shown.to_string(),
+                "sources.root = \".\" is only valid for a config inside a `.latlas/` directory"
+            )),
+        },
     }
-    toml::to_string(&t).map_err(|e| error!(ErrorCode::LatlasConfig, shown.to_string(), e.to_string()))
 }
 
 #[cfg(test)]
@@ -166,6 +153,10 @@ mod tests {
         let out = resolve_dot_root(t, Path::new("/r/repo/.latlas/config.toml"), "c").unwrap();
         assert!(out.contains("root = \"/r/repo\""), "{out}");
         assert!(resolve_dot_root(t, Path::new("/r/repo/config.toml"), "c").is_err());
+        let store = "[sources]\nroot = \".\"\n[store]\ndata_dir = \".latlas/data\"\nscratch_dir = \"/abs/s\"\n";
+        let out = resolve_dot_root(store, Path::new("/r/repo/.latlas/config.toml"), "c").unwrap();
+        assert!(out.contains("data_dir = \"/r/repo/.latlas/data\""), "{out}");
+        assert!(out.contains("scratch_dir = \"/abs/s\""), "{out}");
         let abs = "[sources]\nroot = \"/abs\"\n";
         assert_eq!(resolve_dot_root(abs, Path::new("/x/.latlas/c.toml"), "c").unwrap(), abs);
     }

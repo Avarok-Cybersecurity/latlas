@@ -25,6 +25,35 @@ pub struct CheckConfig {
     pub schema: String,
     pub weights: Weights,
     pub ratchet: Ratchet,
+    pub window: Window,
+    pub prose: Prose,
+    /// 2026-10-24: The derived artifacts F is computed over; an absent list declares none (F is
+    /// then `absent`, check part §1).
+    #[serde(default)]
+    pub derived: Vec<Derived>,
+}
+
+/// 2026-10-24: The commit window churn and traceability count over.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Window {
+    pub days: u32,
+}
+
+/// 2026-10-24: Prose references (R): their weight relative to a structural edge.
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Prose {
+    pub weight: f64,
+}
+
+/// 2026-10-24: One derived artifact (F): fresh when its last commit is no older than every
+/// input's. An input ending in `/` is every tracked path under it.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Derived {
+    pub output: String,
+    pub inputs: Vec<String>,
 }
 
 /// 2026-10-23: `w(n) = imp(n) · churn(n) · pr(n)` (check part §2).
@@ -34,7 +63,8 @@ pub struct Weights {
     /// 2026-10-23: Source-path prefixes and their importance; the longest matching prefix wins,
     /// and a source no prefix matches is a config error (declare `""` to cover everything).
     pub importance: Vec<Importance>,
-    /// 2026-10-23: `off` (the only mode until the host supplies per-path commit counts).
+    /// 2026-10-24: `off`, or `commits`: `1 + ln(1 + commits touching the node's source in the
+    /// window)` (needs the host's commit window).
     pub churn: String,
     pub pagerank: PageRank,
 }
@@ -78,11 +108,19 @@ impl CheckConfig {
         if c.schema != SCHEMA {
             return Err(bad("schema".into(), "must be latlas-check/v1"));
         }
-        if c.weights.churn != "off" {
-            return Err(bad(
-                "weights.churn".into(),
-                "must be `off` (per-path commit counts are not supplied yet)",
-            ));
+        if !matches!(c.weights.churn.as_str(), "off" | "commits") {
+            return Err(bad("weights.churn".into(), "must be `off` or `commits`"));
+        }
+        if c.window.days == 0 {
+            return Err(bad("window.days".into(), "must be >= 1"));
+        }
+        if !(0.0..=1.0).contains(&c.prose.weight) {
+            return Err(bad("prose.weight".into(), "must lie in [0, 1]"));
+        }
+        for d in &c.derived {
+            if d.inputs.is_empty() {
+                return Err(bad(format!("derived `{}`", d.output), "lists no input"));
+            }
         }
         let pr = c.weights.pagerank;
         if !(pr.damping > 0.0 && pr.damping < 1.0) || pr.iterations == 0 {

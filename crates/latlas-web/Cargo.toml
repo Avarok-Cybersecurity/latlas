@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+[package]
+name = "latlas-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Latlas in the browser: the declarative pack's derive, status, graph-only search and score as a WebAssembly module with a JSON-in/JSON-out C ABI (no wasm-bindgen)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+latlas-check = { workspace = true }
+latlas-core = { workspace = true }
+latlas-decl = { workspace = true }
+latlas-error = { workspace = true }
+serde_json = { workspace = true, features = ["alloc"] }
+
+# 2026-10-24: Not the workspace lints: the four ABI exports need `#[unsafe(no_mangle)]` and a raw
+# buffer hand-off, confined to src/abi.rs (`allow(unsafe_code)` there only); everything else in
+# the crate is safe code under `deny`.
+[lints.rust]
+unsafe_code = "deny"
+warnings = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }

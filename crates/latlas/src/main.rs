@@ -42,6 +42,9 @@ enum Cmd {
         base_config: Option<PathBuf>,
         #[arg(long)]
         comment: Option<PathBuf>,
+        /// CI gate results, `{"<gate key>": "pass"|"fail"}` (G is `absent` without them).
+        #[arg(long)]
+        gate_results: Option<PathBuf>,
     },
 }
 
@@ -79,11 +82,13 @@ async fn run(cli: Cli) -> Result<()> {
             check,
             base_config,
             comment,
+            gate_results,
         } => latlas_cli::score::score_cmd::<Decl, DeclHost>(
             &cli.config,
             base_config.as_deref(),
             &check,
             comment.as_deref(),
+            gate_results.as_deref(),
         ),
     }
 }

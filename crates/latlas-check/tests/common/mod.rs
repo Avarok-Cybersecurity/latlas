@@ -5,7 +5,7 @@
 
 #![allow(dead_code)]
 
-use latlas_check::{CheckConfig, Checks, Obligation};
+use latlas_check::{CheckConfig, Checks, Key, Obligation};
 use latlas_core::bundle::{Builder, Bundle, SourceDigest};
 use latlas_core::hash::sha256;
 use latlas_core::id::{Label, NodeId, Rel, Vocab, core_labels, core_rels};
@@ -109,6 +109,15 @@ impl Checks for Adr {
             })
             .collect()
     }
+    fn key(_: &Bundle, n: &Node) -> Option<Key> {
+        let f = |k: &str| n.p.get(k).and_then(Value::as_str).map(str::to_string);
+        Some(Key {
+            subject: f("subject")?,
+            slot: f("slot")?,
+            scope: f("scope").unwrap_or_default(),
+            value: f("value")?,
+        })
+    }
 }
 
 pub fn id(s: &str) -> NodeId {
@@ -185,6 +194,10 @@ schema = "latlas-check/v1"
 churn = "off"
 importance = [{ prefix = "", value = 0.5 }, { prefix = "adr.md", value = 1.0 }]
 pagerank = { damping = 0.85, iterations = 30 }
+[window]
+days = 30
+[prose]
+weight = 0.5
 [ratchet.epsilon]
 F = 0.005
 R = 0.0

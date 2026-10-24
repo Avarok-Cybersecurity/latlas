@@ -15,7 +15,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec;
 use alloc::vec::Vec;
-use latlas_check::{Checks, Obligation};
+use latlas_check::{Checks, Key, Obligation};
 use latlas_core::bundle::{Builder, Bundle, Node};
 use latlas_core::config::Config;
 use latlas_core::derive::need;
@@ -62,6 +62,18 @@ pub struct TableSource {
     /// 2026-10-24: Columns copied into the node's payload (each must exist).
     pub fields: Vec<String>,
     pub outcome: bool,
+    /// 2026-10-24: Columns that key a row for contradictions (X; only Claim/Decision rows are
+    /// keyed). Absent: the table's rows are unkeyed.
+    pub keyed: Option<Keyed>,
+}
+
+/// 2026-10-24: The columns of a row's contradiction key.
+#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct Keyed {
+    pub subject: String,
+    pub slot: String,
+    pub value: String,
 }
 
 /// 2026-10-24: `[sources.rust]`.
@@ -101,6 +113,10 @@ fn derive_table(t: &TableSource, src: &SourceSet, b: &mut Builder) -> Result<()>
         })
     };
     let key = col(&t.key)?;
+    let keyed = match &t.keyed {
+        Some(k) => Some((col(&k.subject)?, col(&k.slot)?, col(&k.value)?)),
+        None => None,
+    };
     let fields: Vec<(String, usize)> = t
         .fields
         .iter()
@@ -124,6 +140,12 @@ fn derive_table(t: &TableSource, src: &SourceSet, b: &mut Builder) -> Result<()>
             let v = cells.get(*i).cloned().unwrap_or_default();
             body.push(format!("{f}: {v}"));
             p.insert(f.clone(), Value::String(v));
+        }
+        if let Some((s, l, v)) = keyed {
+            let cell = |i: usize| Value::String(cells.get(i).cloned().unwrap_or_default());
+            p.insert("x_subject".to_string(), cell(s));
+            p.insert("x_slot".to_string(), cell(l));
+            p.insert("x_value".to_string(), cell(v));
         }
         p.insert("table".to_string(), Value::String(t.id.clone()));
         p.insert("outcome".to_string(), Value::Bool(t.outcome));
@@ -241,5 +263,15 @@ impl Checks for Decl {
                 },
             })
             .collect()
+    }
+
+    fn key(_: &Bundle, n: &Node) -> Option<Key> {
+        let f = |k: &str| n.p.get(k).and_then(Value::as_str).map(ToString::to_string);
+        Some(Key {
+            subject: f("x_subject")?,
+            slot: f("x_slot")?,
+            scope: f("table")?,
+            value: f("x_value")?,
+        })
     }
 }

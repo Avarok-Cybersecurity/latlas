@@ -14,6 +14,7 @@
 
 pub mod clock;
 pub mod fs;
+pub mod git;
 pub mod openrouter;
 pub mod record;
 pub mod settings;

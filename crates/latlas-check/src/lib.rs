@@ -19,7 +19,12 @@
 extern crate alloc;
 
 pub mod config;
+pub mod dim_graph;
+pub mod dim_host;
+pub mod dim_x;
 pub mod dims;
+pub mod facts;
+pub mod prose;
 pub mod pack;
 pub mod ratchet;
 pub mod report;
@@ -27,5 +32,6 @@ pub mod weights;
 
 pub use config::CheckConfig;
 pub use dims::{Dim, DimResult, Mode, Score, score};
-pub use pack::{Checks, Obligation};
+pub use facts::{CheckFacts, WindowCommit};
+pub use pack::{Checks, Key, Obligation};
 pub use ratchet::{Comparison, Status, compare};

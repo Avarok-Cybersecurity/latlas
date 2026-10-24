@@ -10,6 +10,7 @@ description = "Latlas: the integrity score vector over a bundle and the per-dime
 [dependencies]
 latlas-core = { workspace = true }
 latlas-error = { workspace = true }
+libm = { workspace = true }
 serde = { workspace = true, features = ["alloc", "derive"] }
 serde_json = { workspace = true, features = ["alloc"] }
 toml = { workspace = true, features = ["serde", "parse"] }

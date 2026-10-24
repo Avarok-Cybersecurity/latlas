@@ -14,7 +14,7 @@ libm = { workspace = true }
 serde = { workspace = true, features = ["alloc", "derive"] }
 serde_json = { workspace = true, features = ["alloc"] }
 sha2 = { workspace = true, features = ["alloc"] }
-toml = { workspace = true, features = ["serde", "parse"] }
+toml = { workspace = true, features = ["serde", "parse", "display"] }
 
 [lints]
 workspace = true

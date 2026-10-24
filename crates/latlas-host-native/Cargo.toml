@@ -12,8 +12,6 @@ latlas-core = { workspace = true }
 latlas-error = { workspace = true }
 latlas-ports = { workspace = true }
 serde_json = { workspace = true, features = ["std"] }
-# 2026-10-24: `root = "."` resolution in read_config (the repository holding `.latlas/`).
-toml = { workspace = true, features = ["std", "parse", "display", "serde"] }
 tokio = { workspace = true, features = ["rt", "time"] }
 ureq = { workspace = true, features = ["rustls"] }
 

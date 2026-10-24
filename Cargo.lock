@@ -464,6 +464,7 @@ version = "0.1.0"
 dependencies = [
  "latlas-core",
  "latlas-error",
+ "libm",
  "serde",
  "serde_json",
  "toml",
@@ -525,7 +526,6 @@ dependencies = [
  "latlas-ports",
  "serde_json",
  "tokio",
- "toml",
  "ureq",
 ]
 
@@ -544,6 +544,17 @@ dependencies = [
 [[package]]
 name = "latlas-ports"
 version = "0.1.0"
+
+[[package]]
+name = "latlas-web"
+version = "0.1.0"
+dependencies = [
+ "latlas-check",
+ "latlas-core",
+ "latlas-decl",
+ "latlas-error",
+ "serde_json",
+]
 
 [[package]]
 name = "latticedb-core"
@@ -1227,7 +1238,6 @@ version = "1.1.6+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "920602543f0911ab71da12c50d59701da54c196d1a2bf5cb4b75667f137a406a"
 dependencies = [
- "indexmap",
  "serde_core",
  "serde_spanned",
  "toml_datetime",

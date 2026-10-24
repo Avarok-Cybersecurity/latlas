@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! 2026-10-23: Node weights `w(n) = imp(n) · pr(n)` (check part §2; `churn` is `off` until the
-//! host supplies commit counts). `pr` is PageRank over the bundle's edges, normalised to mean 1,
-//! so a node many records rest on carries much weight and an orphan little.
+//! 2026-10-23: Node weights `w(n) = imp(n) · churn(n) · pr(n)` (check part §2). `pr` is PageRank
+//! over the bundle's edges, normalised to mean 1, so a node many records rest on carries much
+//! weight and an orphan little; `churn` (when `commits`) is `1 + ln(1 + commits touching the
+//! node's source in the window)`, so the code being worked on counts most.
 //!
 //! Owner: latlas-check.
 //! Invariants: deterministic (nodes in bundle order, fixed iteration count); every node of the
 //! bundle has a weight; a source path no importance prefix matches is an error.
 
 use crate::config::CheckConfig;
+use crate::facts::CheckFacts;
 use alloc::collections::BTreeMap;
 use alloc::vec;
 use alloc::vec::Vec;
@@ -56,12 +58,20 @@ pub fn pagerank(b: &Bundle, damping: f64, iterations: u32) -> Vec<f64> {
 }
 
 /// 2026-10-23: Every node's weight.
-pub fn weights(b: &Bundle, cfg: &CheckConfig) -> Result<BTreeMap<NodeId, f64>> {
+pub fn weights(b: &Bundle, cfg: &CheckConfig, facts: &CheckFacts) -> Result<BTreeMap<NodeId, f64>> {
     let pr = pagerank(
         b,
         cfg.weights.pagerank.damping,
         cfg.weights.pagerank.iterations,
     );
+    let churn = cfg.weights.churn == "commits";
+    if churn && facts.window.is_none() {
+        return Err(error!(
+            ErrorCode::LatlasConfig,
+            "weights.churn",
+            "is `commits` but the host supplied no commit window"
+        ));
+    }
     let mut out = BTreeMap::new();
     for (n, p) in b.nodes.iter().zip(pr) {
         let path = src_path(&n.src);
@@ -72,7 +82,14 @@ pub fn weights(b: &Bundle, cfg: &CheckConfig) -> Result<BTreeMap<NodeId, f64>> {
                 alloc::format!("no prefix matches the source `{path}`")
             )
         })?;
-        out.insert(n.id.clone(), imp * p);
+        let c = if churn {
+            #[allow(clippy::cast_precision_loss)]
+            let k = facts.touches(path).unwrap_or(0) as f64;
+            1.0 + libm::log1p(k)
+        } else {
+            1.0
+        };
+        out.insert(n.id.clone(), imp * c * p);
     }
     Ok(out)
 }
