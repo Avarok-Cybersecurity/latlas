@@ -11,6 +11,7 @@
 
 pub mod app;
 pub mod cli;
+pub mod embedhost;
 pub mod gates;
 pub mod handlers;
 pub mod host;

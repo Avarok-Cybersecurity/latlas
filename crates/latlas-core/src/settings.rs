@@ -31,8 +31,8 @@ pub const GLOBAL_SCHEMA: &str = "latlas-config/v1";
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct EmbedLayer {
-    /// 2026-10-23: `http` (an OpenAI-compatible POST `/embeddings` API; DESIGN-latlas.md §3.5)
-    /// or `unavailable`.
+    /// 2026-10-23: `http` (an OpenAI-compatible POST `/embeddings` API; DESIGN-latlas.md §3.5),
+    /// `met-local` (2026-10-24: `met` serves the model; [`crate::metlocal`]) or `unavailable`.
     pub mode: Option<String>,
     /// 2026-10-23: Why, for `mode = "unavailable"`.
     pub reason: Option<String>,
@@ -58,6 +58,15 @@ pub struct EmbedLayer {
     pub max_input_chars: Option<u32>,
     /// 2026-10-23: The `input_type` an asymmetric model takes for each role.
     pub input_type: Option<InputTypes>,
+    /// 2026-10-24: The met-local keys ([`crate::metlocal::MET_ONLY`] names them all).
+    pub invocation: Option<String>,
+    pub met_path: Option<String>,
+    pub blueprint: Option<String>,
+    pub blueprint_sha256: Option<String>,
+    pub max_batch: Option<u32>,
+    pub boot_deadline_ms: Option<u64>,
+    pub request_deadline_ms: Option<u64>,
+    pub idle_exit_ms: Option<u64>,
 }
 
 /// 2026-10-23: The request's `input_type` per [`Role`] (`{ query = "query", document = "passage" }`
@@ -123,10 +132,15 @@ pub type Provenance = BTreeMap<&'static str, Layer>;
 
 /// 2026-10-23: Project wins per key. The key reference (`key_file`, `key_prefix`, `key_env`) is
 /// one setting: a project layer that names a key file or variable replaces the global reference
-/// whole, so the two layers never combine into two references.
+/// whole, so the two layers never combine into two references. 2026-10-24: likewise a project
+/// layer that names another `mode` than the global one replaces the global layer whole (the
+/// global layer configures another embedder, whose keys the project's mode refuses).
 pub fn merge(global: &EmbedLayer, project: &EmbedLayer) -> (EmbedLayer, Provenance) {
     let mut prov = Provenance::new();
     let mut global = global.clone();
+    if project.mode.is_some() && project.mode != global.mode {
+        global = EmbedLayer::default();
+    }
     if project.key_file.is_some() || project.key_env.is_some() {
         global.key_file = None;
         global.key_prefix = None;
@@ -164,7 +178,15 @@ pub fn merge(global: &EmbedLayer, project: &EmbedLayer) -> (EmbedLayer, Provenan
         backoff_ms,
         min_interval_ms,
         max_input_chars,
-        input_type
+        input_type,
+        invocation,
+        met_path,
+        blueprint,
+        blueprint_sha256,
+        max_batch,
+        boot_deadline_ms,
+        request_deadline_ms,
+        idle_exit_ms
     );
     (m, prov)
 }
@@ -208,20 +230,28 @@ impl EmbedSettings {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Embedder {
     Available(EmbedSettings),
-    Unavailable { reason: String },
+    /// 2026-10-24: `mode = "met-local"`.
+    MetLocal(crate::metlocal::MetSettings),
+    Unavailable {
+        reason: String,
+    },
 }
 
 fn need<T: Clone>(v: &Option<T>, key: &'static str) -> Result<T> {
+    need_for(v, key, "http")
+}
+
+pub(crate) fn need_for<T: Clone>(v: &Option<T>, key: &'static str, mode: &str) -> Result<T> {
     v.clone().ok_or_else(|| {
         error!(
             ErrorCode::LatlasConfig,
             format!("embedder.{key}"),
-            "is required for mode http (no layer sets it)"
+            format!("is required for {mode} (no layer sets it)")
         )
     })
 }
 
-fn positive(v: u64, key: &'static str) -> Result<()> {
+pub(crate) fn positive(v: u64, key: &'static str) -> Result<()> {
     if v == 0 {
         return Err(error!(
             ErrorCode::LatlasConfig,
@@ -274,7 +304,9 @@ pub fn resolve(m: &EmbedLayer) -> Result<Embedder> {
         "unavailable" => Ok(Embedder::Unavailable {
             reason: need(&m.reason, "reason")?,
         }),
+        "met-local" => crate::metlocal::resolve(m).map(Embedder::MetLocal),
         "http" => {
+            crate::metlocal::refuse_keys(m, crate::metlocal::MET_ONLY, "mode http")?;
             let key = match (&m.key_file, &m.key_env) {
                 (Some(path), None) => KeyRef::File {
                     path: path.clone(),
@@ -333,7 +365,7 @@ pub fn resolve(m: &EmbedLayer) -> Result<Embedder> {
         other => Err(error!(
             ErrorCode::LatlasConfig,
             "embedder.mode",
-            format!("`{other}` is not http or unavailable")
+            format!("`{other}` is not http, met-local or unavailable")
         )),
     }
 }
@@ -362,114 +394,5 @@ pub fn project_node(b: &mut Builder, path: &str, text: &str, layer: &EmbedLayer)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const GLOBAL: &str = r#"schema = "latlas-config/v1"
-[embedder]
-mode = "http"
-endpoint = "https://openrouter.ai/api/v1/embeddings"
-model = "global-model"
-dimensions = 2048
-headers = { "X-Title" = "latlas" }
-key_file = "/k/openrouter.embedder.txt"
-key_prefix = "sk-or-"
-timeout_ms = 70000
-batch = 64
-max_attempts = 5
-backoff_ms = 2000
-min_interval_ms = 0
-max_input_chars = 8000
-input_type = { query = "query", document = "passage" }
-"#;
-
-    fn layer(t: &str) -> EmbedLayer {
-        toml::from_str(t).unwrap()
-    }
-
-    #[test]
-    fn the_project_layer_wins_per_key_and_provenance_says_so() {
-        let g = parse_global(GLOBAL).unwrap();
-        let p = layer("model = \"project-model\"\nbatch = 8\n");
-        let (m, prov) = merge(&g, &p);
-        let Embedder::Available(s) = resolve(&m).unwrap() else {
-            panic!("must be available")
-        };
-        assert_eq!(
-            (s.model.as_str(), s.batch, s.dimensions),
-            ("project-model", 8, 2048)
-        );
-        assert_eq!(prov["model"], Layer::Project);
-        assert_eq!(prov["endpoint"], Layer::Global);
-        assert_eq!(
-            s.key,
-            KeyRef::File {
-                path: "/k/openrouter.embedder.txt".into(),
-                prefix: "sk-or-".into()
-            }
-        );
-        let (m, prov) = merge(&g, &layer("key_env = \"OPENROUTER_KEY\"\n"));
-        let Embedder::Available(s) = resolve(&m).unwrap() else {
-            panic!("must be available")
-        };
-        assert_eq!(
-            s.key,
-            KeyRef::Env {
-                name: "OPENROUTER_KEY".into()
-            }
-        );
-        assert!(!prov.contains_key("key_file"));
-    }
-
-    #[test]
-    fn no_embedder_anywhere_is_the_declared_unavailable_mode() {
-        let (m, _) = merge(&EmbedLayer::default(), &EmbedLayer::default());
-        assert!(matches!(resolve(&m).unwrap(), Embedder::Unavailable { .. }));
-        let p = layer("mode = \"unavailable\"\nreason = \"P0\"\n");
-        let (m, _) = merge(&parse_global(GLOBAL).unwrap(), &p);
-        assert_eq!(
-            resolve(&m).unwrap(),
-            Embedder::Unavailable {
-                reason: "P0".into()
-            }
-        );
-    }
-
-    #[test]
-    fn a_named_embedder_missing_a_key_fails_with_that_key() {
-        let without: String = GLOBAL
-            .lines()
-            .filter(|l| !l.starts_with("min_interval_ms"))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let (m, _) = merge(&parse_global(&without).unwrap(), &EmbedLayer::default());
-        let e = resolve(&m).unwrap_err().to_string();
-        assert!(e.contains("embedder.min_interval_ms"), "{e}");
-        let (m, _) = merge(&EmbedLayer::default(), &layer("model = \"x\"\n"));
-        assert!(
-            resolve(&m)
-                .unwrap_err()
-                .to_string()
-                .contains("embedder.mode")
-        );
-    }
-
-    #[test]
-    fn an_inline_key_or_two_key_references_are_refused() {
-        let (m, _) = merge(
-            &parse_global(GLOBAL).unwrap(),
-            &layer("headers = { Authorization = \"Bearer sk-or-v1-abc\" }\n"),
-        );
-        assert!(resolve(&m).unwrap_err().to_string().contains("credential"));
-        let both =
-            layer("key_env = \"OPENROUTER_KEY\"\nkey_file = \"/k/f\"\nkey_prefix = \"sk-or-\"\n");
-        let (m, _) = merge(&parse_global(GLOBAL).unwrap(), &both);
-        assert!(resolve(&m).unwrap_err().to_string().contains("both set"));
-        assert!(parse_global("schema = \"other\"\n").is_err());
-        let (m, _) = merge(
-            &parse_global(GLOBAL).unwrap(),
-            &layer("key_file = \"/k/f\"\nkey_prefix = \"sk-or-v1-0123456789abcdef\"\n"),
-        );
-        assert!(resolve(&m).unwrap_err().to_string().contains("key_prefix"));
-    }
-}
+#[path = "settings/tests.rs"]
+mod tests;

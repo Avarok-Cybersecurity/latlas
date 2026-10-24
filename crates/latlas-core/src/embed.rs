@@ -64,10 +64,25 @@ pub trait Embedder {
 
 /// 2026-10-23: The OpenAI-shaped request body, with the asymmetric model's `input_type`.
 pub fn request_body(model: &str, input_type: &str, inputs: &[String]) -> String {
+    canon_body(request_object(model, input_type, inputs))
+}
+
+/// 2026-10-24: The fields of [`request_body`], for a body that adds one (met-local's
+/// `encoding_format`).
+pub fn request_object(
+    model: &str,
+    input_type: &str,
+    inputs: &[String],
+) -> serde_json::Map<String, Value> {
     let mut o = serde_json::Map::new();
     o.insert("model".into(), Value::String(model.to_string()));
     o.insert("input_type".into(), Value::String(input_type.to_string()));
     o.insert("input".into(), Value::from(inputs.to_vec()));
+    o
+}
+
+/// 2026-10-24: The canonical text of a body object.
+pub fn canon_body(o: serde_json::Map<String, Value>) -> String {
     let mut s = String::new();
     crate::jsonl::canon(&Value::Object(o), &mut s);
     s

@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Latlas: the pure core: typed ids over an open vocabulary, the bundle, the pack contract, closures, hybrid ranking and status sections. no_std + alloc, no I/O."
 
 [dependencies]
+base64 = { workspace = true, features = ["alloc"] }
 latlas-error = { workspace = true }
 latlas-ports = { workspace = true }
 libm = { workspace = true }

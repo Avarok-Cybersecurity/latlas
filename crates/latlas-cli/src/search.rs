@@ -15,6 +15,7 @@
 //!   the first search embed 1311 texts inline, minutes under the app lock).
 
 use crate::app::App;
+use crate::embedhost::EmbedHost;
 use crate::host::PackHost;
 use latlas_core::Pack;
 use latlas_core::embed::{Embedder, Mode, Plan, Role, cosine, embed_all, missing};
@@ -24,7 +25,6 @@ use latlas_core::search::{lexical, named, rank};
 use latlas_core::tools::{DEFAULT_SEARCH_HOPS, DEFAULT_SEARCH_K};
 use latlas_error::{ErrorCode, Result, error};
 use latlas_host_native::clock::{SystemClock, TokioTimer};
-use latlas_host_native::openrouter::OpenRouter;
 use latlas_index::textstore::TextStore;
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -35,7 +35,7 @@ use tokio::sync::Mutex;
 pub enum Embed {
     Off(String),
     On {
-        host: OpenRouter,
+        host: EmbedHost,
         /// 2026-10-23: Shared with the background warmer, which persists each batch as it lands.
         cache: Arc<Mutex<TextStore>>,
         plan: Plan,
@@ -84,7 +84,7 @@ pub fn warming_reason(
 /// 2026-10-23: Embed `todo` one batch at a time, persisting each batch before the next is sent,
 /// so a stopped or killed run keeps its progress. Never holds the app.
 async fn warm_run(
-    host: OpenRouter,
+    host: EmbedHost,
     cache: Arc<Mutex<TextStore>>,
     plan: Plan,
     warm: Arc<StdMutex<Warm>>,
@@ -185,7 +185,7 @@ pub async fn warm_blocking<P: Pack, H: PackHost<P>>(app: &App<P, H>) -> Result<u
     warm_run(host.clone(), cache.clone(), *plan, warm.clone(), todo).await
 }
 
-async fn query_vector(host: &OpenRouter, text: &str, plan: &Plan) -> Result<Vec<f32>> {
+async fn query_vector(host: &EmbedHost, text: &str, plan: &Plan) -> Result<Vec<f32>> {
     let todo = [(latlas_core::hash::record_sha(text), text.to_string())];
     let mut got = embed_all(host, &SystemClock, &TokioTimer, plan, Role::Query, &todo).await;
     match (got.done.pop(), got.stopped, got.refused.pop()) {

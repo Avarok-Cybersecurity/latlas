@@ -19,9 +19,11 @@ latlas-decl = { path = "crates/latlas-decl" }
 latlas-adapters = { path = "crates/latlas-adapters" }
 latlas-cli = { path = "crates/latlas-cli" }
 latlas-host-native = { path = "crates/latlas-host-native" }
+latlas-host-met = { path = "crates/latlas-host-met" }
 latlas-index = { path = "crates/latlas-index" }
 lattice-core = { version = "=0.3.4", package = "latticedb-core", default-features = false }
 lattice-storage = { version = "=0.3.4", package = "latticedb-storage", default-features = false }
+base64 = { version = "0.23", default-features = false }
 anyhow = { version = "1", default-features = false }
 clap = { version = "4", default-features = false }
 rmcp = { version = "0.16", default-features = false }
