@@ -15,6 +15,7 @@ latlas-error = { path = "crates/latlas-error" }
 latlas-ports = { path = "crates/latlas-ports" }
 latlas-core = { path = "crates/latlas-core" }
 latlas-check = { path = "crates/latlas-check" }
+latlas-decl = { path = "crates/latlas-decl" }
 latlas-adapters = { path = "crates/latlas-adapters" }
 latlas-cli = { path = "crates/latlas-cli" }
 latlas-host-native = { path = "crates/latlas-host-native" }

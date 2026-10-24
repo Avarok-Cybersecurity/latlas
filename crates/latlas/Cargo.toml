@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+[package]
+name = "latlas"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Latlas: the `latlas` binary over the declarative pack: derive, check, score, query and serve a repository's `.latlas/config.toml`."
+
+[[bin]]
+name = "latlas"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = { workspace = true, features = ["std"] }
+clap = { workspace = true, features = ["std", "derive", "help", "usage", "error-context"] }
+latlas-cli = { workspace = true }
+latlas-core = { workspace = true }
+latlas-decl = { workspace = true }
+latlas-error = { workspace = true }
+latlas-host-native = { workspace = true }
+serde_json = { workspace = true, features = ["std"] }
+tokio = { workspace = true, features = ["rt", "macros"] }
+
+[lints]
+workspace = true
