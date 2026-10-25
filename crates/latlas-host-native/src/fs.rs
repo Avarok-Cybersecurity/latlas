@@ -9,11 +9,15 @@
 //! Invariants:
 //! - Credential-named files (`secrets::name_is_secret`) are stamped and listed, never read.
 //! - A configured file that is missing is `LatlasSource`, never skipped.
+//! - (2026-10-25) With a tracked snapshot ([`Tracked`]), every path under its repository is
+//!   listed, read and stamped from the snapshot (the commit's tree and blobs), never from disk.
 
 use latlas_core::secrets::name_is_secret;
 use latlas_core::{Config, Pack, SourceSet};
 use latlas_error::{ErrorCode, Result, error};
+use latlas_core::track::Snapshot;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
 /// 2026-10-23: One file's stat: root-relative path, size, mtime (ns since the epoch).
@@ -23,6 +27,23 @@ pub type Stamp = Vec<(String, u64, u128)>;
 #[derive(Clone, Debug)]
 pub struct FsSources {
     pub root: PathBuf,
+    /// 2026-10-25: The tracked repository's snapshot, when `[repo_track]` has landed one.
+    pub track: Option<Tracked>,
+}
+
+/// 2026-10-25: A root-relative repository directory served from a snapshot.
+#[derive(Clone, Debug)]
+pub struct Tracked {
+    pub repo: String,
+    pub snap: Arc<Snapshot>,
+}
+
+fn not_tracked(rel: &str) -> latlas_error::Error {
+    error!(
+        ErrorCode::LatlasSource,
+        rel.to_string(),
+        "not in the tracked commit"
+    )
 }
 
 /// 2026-10-23: A source the host could not read or stat.
@@ -35,7 +56,22 @@ impl FsSources {
     pub fn new<P: Pack>(cfg: &Config<P::Sources>) -> Self {
         FsSources {
             root: PathBuf::from(P::root(&cfg.sources)),
+            track: None,
         }
+    }
+
+    /// 2026-10-25: The snapshot and the repo-relative path, when `rel` lies in the tracked repo.
+    fn tracked<'a>(&'a self, rel: &'a str) -> Option<(&'a Snapshot, &'a str)> {
+        let t = self.track.as_ref()?;
+        let inner = rel.strip_prefix(t.repo.as_str())?;
+        let inner = if inner.is_empty() { inner } else { inner.strip_prefix('/')? };
+        Some((&t.snap, inner))
+    }
+
+    /// 2026-10-25: The tracked commit, when a snapshot is served.
+    pub fn tracked_commit(&self) -> Option<&str> {
+        let t = self.track.as_ref()?;
+        t.snap.commit.as_ref().map(|c| c.0.as_str())
     }
 
     /// 2026-10-23: The absolute path of a root-relative one.
@@ -45,6 +81,17 @@ impl FsSources {
 
     /// 2026-10-23: The files of `dir` (root-relative) whose names end in `ext`, sorted.
     pub fn files_in(&self, dir: &str, ext: &str) -> Result<Vec<String>> {
+        if let Some((snap, inner)) = self.tracked(dir.trim_end_matches('/')) {
+            let pre = if inner.is_empty() { String::new() } else { format!("{inner}/") };
+            let base = dir.trim_end_matches('/');
+            return Ok(snap
+                .tree
+                .keys()
+                .filter_map(|p| p.strip_prefix(&pre))
+                .filter(|n| !n.contains('/') && n.ends_with(ext))
+                .map(|n| format!("{base}/{n}"))
+                .collect());
+        }
         let rd = std::fs::read_dir(self.abs(dir)).map_err(|e| source_err(dir, &e))?;
         let mut out = Vec::new();
         for entry in rd {
@@ -71,6 +118,21 @@ impl FsSources {
         Ok(v)
     }
 
+    /// 2026-10-25: The repo-relative paths under the tracked repository that a read of `cfg` and
+    /// `extra` would open (what a new snapshot must hold texts for).
+    pub fn tracked_paths<P: Pack>(
+        &self,
+        cfg: &Config<P::Sources>,
+        extra: &[String],
+    ) -> Result<std::collections::BTreeSet<String>> {
+        Ok(self
+            .all_paths::<P>(cfg, extra)?
+            .iter()
+            .filter(|rel| !name_is_secret(rel))
+            .filter_map(|rel| self.tracked(rel).map(|(_, inner)| inner.to_string()))
+            .collect())
+    }
+
     /// 2026-10-23: Read every configured source and `extra` (credential-named files are withheld
     /// unread).
     pub fn read<P: Pack>(&self, cfg: &Config<P::Sources>, extra: &[String]) -> Result<SourceSet> {
@@ -80,7 +142,15 @@ impl FsSources {
                 set.withheld.insert(rel);
                 continue;
             }
-            let text = std::fs::read_to_string(self.abs(&rel)).map_err(|e| source_err(&rel, &e))?;
+            let text = match self.tracked(&rel) {
+                Some((snap, inner)) => snap
+                    .tree
+                    .get(inner)
+                    .and_then(|id| snap.texts.get(id))
+                    .cloned()
+                    .ok_or_else(|| not_tracked(&rel))?,
+                None => std::fs::read_to_string(self.abs(&rel)).map_err(|e| source_err(&rel, &e))?,
+            };
             set.add(&rel, text);
         }
         Ok(set)
@@ -90,6 +160,14 @@ impl FsSources {
     pub fn stamp<P: Pack>(&self, cfg: &Config<P::Sources>, extra: &[String]) -> Result<Stamp> {
         let mut out = Vec::new();
         for rel in self.all_paths::<P>(cfg, extra)? {
+            if let Some((snap, inner)) = self.tracked(&rel) {
+                let id = snap.tree.get(inner).ok_or_else(|| not_tracked(&rel))?;
+                let h = latlas_core::hash::sha256(id.0.as_bytes());
+                let mut b = [0u8; 16];
+                b.copy_from_slice(&h.0[..16]);
+                out.push((rel, 0, u128::from_le_bytes(b)));
+                continue;
+            }
             let md = std::fs::metadata(self.abs(&rel)).map_err(|e| source_err(&rel, &e))?;
             let mtime = md
                 .modified()

@@ -19,6 +19,7 @@ pub mod mcp;
 pub mod pause;
 pub mod score;
 pub mod search;
+pub mod track;
 
 pub use app::App;
 pub use cli::{CoreCmd, Identity, run_core};

@@ -34,6 +34,10 @@ pub struct Config<S> {
     pub store: Store,
     pub search: Search,
     pub validator: Validator,
+    /// 2026-10-25: `[repo_track]`: follow a remote ref from the git object store
+    /// ([`crate::track`]). Absent means tracking is off (declared and reported by `la_status`).
+    #[serde(default)]
+    pub repo_track: Option<crate::track::RepoTrack>,
     /// 2026-10-23: The root-relative path this config was read from, set by the host that read
     /// it (never by the file), so the config's own node has a `src`.
     #[serde(skip)]
@@ -123,6 +127,9 @@ impl<S> Config<S> {
             }
         }
         P::validate(&self.sources)?;
+        if let Some(t) = &self.repo_track {
+            t.validate()?;
+        }
         if self.limits.search_deadline_ms == 0 {
             return Err(error!(
                 ErrorCode::LatlasConfig,

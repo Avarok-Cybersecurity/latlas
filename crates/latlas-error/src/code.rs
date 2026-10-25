@@ -69,6 +69,12 @@ error_registry! {
         LatlasRecordWrite = 0x0113 => "record {}: {}",
         /// 2026-10-23: The bundle could not be re-derived; results are stale: (reason).
         LatlasStaleBundle = 0x0114 => "the bundle is stale: {}",
+        /// 2026-10-25: `[repo_track]` could not fetch the tracked ref; the last good commit is
+        /// still served and the next tick retries: (`remote ref`, what git said).
+        LatlasRepoFetch = 0x0115 => "repo track: fetch {} failed: {}",
+        /// 2026-10-25: `[repo_track]` could not read the fetched commit's tree or blobs; the last
+        /// good commit is still served: (commit, what failed).
+        LatlasRepoRead = 0x0116 => "repo track: reading {} failed: {}",
         /// 2026-10-23: The embedder is in its declared unavailable mode or failed: (reason).
         LatlasEmbedderUnavailable = 0x0120 => "embedder unavailable: {}",
         /// 2026-10-23: The embedder kept rate-limiting: (attempts).

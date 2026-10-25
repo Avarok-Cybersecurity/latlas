@@ -85,7 +85,7 @@ pub async fn call<P: Pack, H: PackHost<P>>(
                 &app.cfg,
                 scope,
                 &sections,
-                &app.fresh,
+                &app.freshness(),
                 instance,
             )?;
             if sections.is_empty() || sections.iter().any(|s| s == "freshness") {
@@ -108,6 +108,9 @@ pub async fn call<P: Pack, H: PackHost<P>>(
                 if let Value::Object(o) = &mut v {
                     o.insert("settings".into(), Value::Object(st));
                     o.insert("pause".into(), app.pause.status());
+                    if let Some(Value::Object(f)) = o.get_mut("freshness") {
+                        f.insert("repo_track".into(), app.track_status());
+                    }
                 }
             }
             v

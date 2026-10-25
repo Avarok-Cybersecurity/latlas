@@ -16,6 +16,7 @@
 pub mod clock;
 pub mod fs;
 pub mod git;
+pub mod gitport;
 pub mod openrouter;
 pub mod pause;
 pub mod record;

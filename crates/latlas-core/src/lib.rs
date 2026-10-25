@@ -48,6 +48,7 @@ pub mod sources;
 pub mod status;
 pub mod text;
 pub mod tools;
+pub mod track;
 
 pub use bundle::{Builder, Bundle, Edge, Node, Text};
 pub use config::Config;

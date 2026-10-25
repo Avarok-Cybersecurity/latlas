@@ -23,6 +23,8 @@
 0x0112 LatlasValidatorRejected
 0x0113 LatlasRecordWrite
 0x0114 LatlasStaleBundle
+0x0115 LatlasRepoFetch
+0x0116 LatlasRepoRead
 0x0120 LatlasEmbedderUnavailable
 0x0121 LatlasEmbedRateLimited
 0x0122 LatlasEmbedProtocol
