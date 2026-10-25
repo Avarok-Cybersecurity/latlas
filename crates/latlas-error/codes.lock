@@ -38,3 +38,4 @@
 0x0131 LatlasStore
 0x0132 LatlasToolArgument
 0x0133 LatlasUnknownId
+0x0134 LatlasStoreFormat

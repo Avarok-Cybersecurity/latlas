@@ -21,8 +21,11 @@ latlas-cli = { path = "crates/latlas-cli" }
 latlas-host-native = { path = "crates/latlas-host-native" }
 latlas-host-met = { path = "crates/latlas-host-met" }
 latlas-index = { path = "crates/latlas-index" }
-lattice-core = { version = "=0.3.4", package = "latticedb-core", default-features = false }
-lattice-storage = { version = "=0.3.4", package = "latticedb-storage", default-features = false }
+# 2026-10-25: lattice-db fix/disk-page-per-file (one file per DiskStorage page; 0.3.4's
+# fixed-stride pages.dat overwrote a page with its larger neighbour). Back to a crates.io
+# version once that fix is released; core and storage stay on one rev (one LatticeStorage trait).
+lattice-core = { git = "https://github.com/Avarok-Cybersecurity/lattice-db", rev = "61bc74150d584d774370f19d7a8387ceec0bcbb2", package = "latticedb-core", default-features = false }
+lattice-storage = { git = "https://github.com/Avarok-Cybersecurity/lattice-db", rev = "61bc74150d584d774370f19d7a8387ceec0bcbb2", package = "latticedb-storage", default-features = false }
 base64 = { version = "0.23", default-features = false }
 anyhow = { version = "1", default-features = false }
 clap = { version = "4", default-features = false }
