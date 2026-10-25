@@ -11,6 +11,7 @@
 //! - Any failure terminates the child: its stream position is unknown, so it is never reused.
 //! - A child is kept per role, because `--input-type` is fixed for its life.
 
+use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -24,7 +25,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 use tokio::time::{Instant, timeout_at};
 
-use crate::child::MetChild;
+use crate::child::{MetChild, child_env};
 
 /// 2026-10-24: The alias host.
 pub struct Alias {
@@ -34,6 +35,8 @@ pub struct Alias {
     idle_exit_ms: u64,
     trust: MetTrust,
     log: PathBuf,
+    /// 2026-10-25: The children's whole environment (`child::CHILD_ENV`), read once at `new`.
+    env: Vec<(OsString, OsString)>,
     /// 2026-10-24: The kept child per role (`[query, document]`), when `idle_exit_ms > 0`.
     kept: [Mutex<Option<MetChild>>; 2],
 }
@@ -76,6 +79,7 @@ impl Alias {
             idle_exit_ms,
             trust,
             log,
+            env: child_env(),
             kept: [Mutex::new(None), Mutex::new(None)],
         }
     }
@@ -99,6 +103,7 @@ impl Alias {
                 input_type,
                 self.idle_exit_ms,
                 &self.trust,
+                &self.env,
                 &self.log,
             )?,
         };

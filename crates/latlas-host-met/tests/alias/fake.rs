@@ -79,6 +79,17 @@ pub fn run(args: &[String]) -> ! {
         .open(format!("{blueprint}.argv"))
         .unwrap();
     writeln!(argv, "{}", args[1..].join("\t")).unwrap();
+    // 2026-10-25: The names (never the values) of its environment, sorted, tab-joined.
+    let mut names: Vec<String> = std::env::vars_os()
+        .map(|(k, _)| k.to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    let mut env = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(format!("{blueprint}.env"))
+        .unwrap();
+    writeln!(env, "{}", names.join("\t")).unwrap();
     record_pid(blueprint, std::process::id());
     let conf = String::from_utf8_lossy(&std::fs::read(blueprint).unwrap()).into_owned();
     let get = |k: &str| {

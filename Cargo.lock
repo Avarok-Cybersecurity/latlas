@@ -599,8 +599,7 @@ dependencies = [
 [[package]]
 name = "latticedb-core"
 version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9ebcb813da64b339f1ac5173237a357bdffa87c0e90d8fd5be9dd2e97d207f4"
+source = "git+https://github.com/Avarok-Cybersecurity/lattice-db?rev=61bc74150d584d774370f19d7a8387ceec0bcbb2#61bc74150d584d774370f19d7a8387ceec0bcbb2"
 dependencies = [
  "async-trait",
  "bumpalo",
@@ -622,8 +621,7 @@ dependencies = [
 [[package]]
 name = "latticedb-storage"
 version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0cdfb8f614ff7ae1d6bff5a9cf1fa0597a4b65d4c6e2ade90521e889317debb"
+source = "git+https://github.com/Avarok-Cybersecurity/lattice-db?rev=61bc74150d584d774370f19d7a8387ceec0bcbb2#61bc74150d584d774370f19d7a8387ceec0bcbb2"
 dependencies = [
  "async-trait",
  "latticedb-core",

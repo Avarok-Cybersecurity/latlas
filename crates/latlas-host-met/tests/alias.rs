@@ -5,6 +5,8 @@
 //! is the `met` process itself, which does not exist yet) and every frame, deadline, kill and
 //! check runs through production code. `cargo test --test alias -- <substring>` runs a subset.
 
+#[path = "alias/env.rs"]
+mod env;
 #[path = "alias/fake.rs"]
 mod fake;
 #[path = "support/kbp.rs"]
@@ -461,6 +463,7 @@ const CASES: &[(&str, fn())] = &[
     ),
     ("max_batch", more_inputs_than_max_batch_are_refused_unsent),
     ("trust_flags", trust_flags_reach_met),
+    ("host_env", env::the_host_env_never_reaches_met),
     (
         "trust_anchor_unavailable",
         a_missing_or_non_file_trust_anchor_is_the_declared_unavailable_mode,
@@ -469,8 +472,10 @@ const CASES: &[(&str, fn())] = &[
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    if args.get(1).map(String::as_str) == Some("embed") {
-        fake::run(&args);
+    match args.get(1).map(String::as_str) {
+        Some("embed") => fake::run(&args),
+        Some("env-probe") => return env::env_probe(),
+        _ => {}
     }
     let filter: Vec<&String> = args
         .iter()

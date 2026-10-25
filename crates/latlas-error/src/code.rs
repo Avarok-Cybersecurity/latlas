@@ -107,5 +107,9 @@ error_registry! {
         LatlasToolArgument = 0x0132 => "tool argument {}: {}",
         /// 2026-10-23: An id that names no node: (id).
         LatlasUnknownId = 0x0133 => "no node {}",
+        /// 2026-10-25: A store directory in a layout this build refuses to read (LatticeDB's
+        /// pre-fix `pages.dat`, whose pages overlap); it is derived, so it is rebuilt by deleting
+        /// it: (directory, what was found).
+        LatlasStoreFormat = 0x0134 => "store {} is in a layout this build does not read ({}); delete the directory to rebuild it from the bundle",
     }
 }

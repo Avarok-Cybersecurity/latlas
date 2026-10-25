@@ -21,7 +21,7 @@ use lattice_core::{
     CollectionConfig, CollectionEngine, CypherValue, Distance, DurabilityMode, Edge, ExportOptions,
     HnswConfig, Point, VectorConfig, export_jsonl,
 };
-use lattice_storage::DiskStorage;
+use lattice_storage::{DiskStorage, StorageError};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
@@ -95,8 +95,14 @@ fn node_point(n: &latlas_core::Node, edges: &[Edge]) -> Point {
         .with_payload(payload)
 }
 
+/// 2026-10-25: The largest page either store writes. A WAL page is one load's batch when that
+/// exceeds 256 KiB: the whole bundle for `kg` (5.8 MB live on 2026-10-25) or one put for
+/// `kg_text` (64 2048-dimension vectors, ~0.5 MB). A larger page fails the write, coded.
+pub const MAX_PAGE_BYTES: usize = 256 << 20;
+
 /// 2026-10-23: A WAL and a data `DiskStorage` under `dir` (`DiskStorage` is not `Clone`, so the
-/// unified opener does not apply).
+/// unified opener does not apply). A directory in LatticeDB's overlapping-page layout is refused
+/// with [`ErrorCode::LatlasStoreFormat`], never read.
 pub async fn disk_pair(dir: &Path) -> Result<(DiskStorage, DiskStorage)> {
     let mut out = Vec::new();
     for part in ["wal", "data"] {
@@ -108,13 +114,18 @@ pub async fn disk_pair(dir: &Path) -> Result<(DiskStorage, DiskStorage)> {
                 e.to_string()
             )
         })?;
-        let s = DiskStorage::with_defaults(d);
-        s.init().await.map_err(|e| {
-            error!(
+        let s = DiskStorage::new(d, MAX_PAGE_BYTES);
+        s.init().await.map_err(|e| match e {
+            StorageError::InvalidFormat { found, .. } => error!(
+                ErrorCode::LatlasStoreFormat,
+                dir.display().to_string(),
+                found
+            ),
+            other => error!(
                 ErrorCode::LatlasStore,
                 format!("init {part}"),
-                format!("{e:?}")
-            )
+                format!("{other:?}")
+            ),
         })?;
         out.push(s);
     }
