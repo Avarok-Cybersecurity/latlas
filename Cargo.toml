@@ -26,7 +26,7 @@ lattice-storage = { version = "=0.3.4", package = "latticedb-storage", default-f
 base64 = { version = "0.23", default-features = false }
 anyhow = { version = "1", default-features = false }
 clap = { version = "4", default-features = false }
-rmcp = { version = "0.16", default-features = false }
+rmcp = { version = "2.1", default-features = false }
 libm = { version = "0.2", default-features = false }
 # 2026-10-24: The `.kbp` body codecs met writes (kzx) and still reads (deflate), for the
 # met-local BlueprintId (latlas-core::kbp).
