@@ -107,6 +107,7 @@ pub async fn call<P: Pack, H: PackHost<P>>(
                 st.insert("provenance".into(), Value::Object(prov));
                 if let Value::Object(o) = &mut v {
                     o.insert("settings".into(), Value::Object(st));
+                    o.insert("pause".into(), app.pause.status());
                 }
             }
             v

@@ -11,6 +11,7 @@
 
 use crate::embedhost::EmbedHost;
 use crate::host::PackHost;
+use crate::pause::PauseCtl;
 use crate::search::Embed;
 use anyhow::Result;
 use latlas_core::embed::{Embedder as _, Mode, Plan};
@@ -23,6 +24,7 @@ use latlas_host_met::MetLocal;
 use latlas_host_native::clock::SystemClock;
 use latlas_host_native::fs::{FsSources, Stamp, read_config};
 use latlas_host_native::openrouter::OpenRouter;
+use latlas_host_native::pause::LockFile;
 use latlas_host_native::settings::{Resolved, resolve_settings};
 use latlas_index::store::{Store, data_dir};
 use latlas_index::textstore::TextStore;
@@ -48,6 +50,8 @@ pub struct App<P: Pack, H: PackHost<P>> {
     /// 2026-10-23: The embedder host the settings chose, with its cache (or the declared
     /// unavailable mode and why). The mode every result reports comes from here.
     pub embed: Embed,
+    /// 2026-10-25: The pause gate over its signal, shared with the server's poll loop.
+    pub pause: Arc<PauseCtl>,
     clock: SystemClock,
 }
 
@@ -137,8 +141,18 @@ impl<P: Pack, H: PackHost<P>> App<P, H> {
         Ok((fs.stamp::<P>(cfg, &extra)?, host.extra_stamp(cfg, fs)?))
     }
 
-    /// 2026-10-23: Load the config, derive, open the store at `data_dir` (or the config's) and load.
+    /// 2026-10-23: Load the config, derive, open the store at `data_dir` (or the config's) and load;
+    /// (2026-10-25) the pause signal is `latlas.lock` beside the running executable.
     pub async fn open(cfg_path: &Path, data_override: Option<&Path>) -> Result<Self> {
+        Self::open_with(cfg_path, data_override, LockFile::beside_current_exe()?).await
+    }
+
+    /// 2026-10-25: [`open`](Self::open) with the pause signal `lock`, read once before it returns.
+    pub async fn open_with(
+        cfg_path: &Path,
+        data_override: Option<&Path>,
+        lock: LockFile,
+    ) -> Result<Self> {
         let (cfg, fs, host) = open_hosts::<P, H>(cfg_path)?;
         let settings = resolve_settings(&cfg.embedder)?;
         let stamp = Self::stamps(&cfg, &fs, &host)?;
@@ -151,6 +165,8 @@ impl<P: Pack, H: PackHost<P>> App<P, H> {
         store.load(&bundle).await?;
         let embed = open_embed(&settings.embedder, &dir).await?;
         let clock = SystemClock;
+        let pause = Arc::new(PauseCtl::new(lock));
+        pause.poll(&clock, embed.host()).await;
         let fresh = Freshness {
             stale_reason: None,
             derived_at_ms: clock.now_unix_ms().0,
@@ -168,6 +184,7 @@ impl<P: Pack, H: PackHost<P>> App<P, H> {
             store: Arc::new(Mutex::new(store)),
             settings,
             embed,
+            pause,
             clock,
         })
     }

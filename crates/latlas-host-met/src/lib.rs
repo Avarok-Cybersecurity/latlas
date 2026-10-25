@@ -69,6 +69,22 @@ impl MetLocal {
         }
     }
 
+    /// 2026-10-25: Hold no embedder process until [`resume`](Self::resume) (the alias stops its
+    /// children and spawns none). A resident `met serve` is not this host's process: it is left
+    /// running, and so is an unavailable host's nothing.
+    pub async fn suspend(&self) {
+        if let Self::Alias(a) = self {
+            a.suspend().await;
+        }
+    }
+
+    /// 2026-10-25: Undo [`suspend`](Self::suspend).
+    pub fn resume(&self) {
+        if let Self::Alias(a) = self {
+            a.resume();
+        }
+    }
+
     fn settings(&self) -> Option<&MetSettings> {
         match self {
             Self::Alias(a) => Some(a.settings()),

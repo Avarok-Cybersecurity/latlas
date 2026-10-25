@@ -176,8 +176,11 @@ where
     use rmcp::ServiceExt;
     let app = App::<P, H>::open(cfg, data).await?;
     crate::search::start_warming(&app).await?;
+    let (pause, host) = (app.pause.clone(), app.embed.host().cloned());
+    let app = std::sync::Arc::new(tokio::sync::Mutex::new(app));
+    tokio::spawn(crate::pause::watch(app.clone(), pause, host));
     let server = Server {
-        app: std::sync::Arc::new(tokio::sync::Mutex::new(app)),
+        app,
         name: id.name,
         version: id.version,
     };

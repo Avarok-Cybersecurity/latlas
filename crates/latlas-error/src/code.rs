@@ -99,6 +99,9 @@ error_registry! {
         /// 2026-10-24: A `.kbp` blueprint the met-local host refuses before it derives the
         /// BlueprintId (header, caps, codec, raw-body hash): (what, why).
         LatlasBlueprint = 0x012A => "blueprint {}: {}",
+        /// 2026-10-25: The embedder is paused (the host's pause signal is present): it spawns
+        /// nothing and an exchange in flight is cut off: (the reason).
+        LatlasPaused = 0x012B => "embedder paused: {}",
         /// 2026-10-23: A Cypher text `la_query` refuses: (reason).
         LatlasCypherRejected = 0x0130 => "cypher refused: {}",
         /// 2026-10-23: A graph store operation failed: (operation, reason).

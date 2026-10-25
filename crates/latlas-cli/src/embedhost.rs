@@ -35,3 +35,19 @@ impl Embedder for EmbedHost {
         }
     }
 }
+
+impl EmbedHost {
+    /// 2026-10-25: Hold no embedder process (`MetLocal::suspend`); the HTTP host holds none.
+    pub async fn suspend(&self) {
+        if let Self::MetLocal(h) = self {
+            h.suspend().await;
+        }
+    }
+
+    /// 2026-10-25: Undo [`suspend`](Self::suspend).
+    pub fn resume(&self) {
+        if let Self::MetLocal(h) = self {
+            h.resume();
+        }
+    }
+}
