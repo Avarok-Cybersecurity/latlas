@@ -91,6 +91,7 @@ impl latlas_cli::host::PackHost<Decl> for DeclHost {
         _: &FsSources,
         _: &Bundle,
         _: &Value,
+        _: latlas_ports::UnixMs,
     ) -> latlas_error::Result<(Value, bool)> {
         Err(error!(ErrorCode::LatlasToolArgument, "kind", "the declarative pack declares no record kinds"))
     }

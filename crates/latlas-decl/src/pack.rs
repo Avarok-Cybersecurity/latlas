@@ -165,7 +165,7 @@ impl Pack for Decl {
     const IMPACT_FOLLOW_OUT: &'static [Rel] = &[];
     const SECTIONS: &'static [&'static str] = &[];
     const DEFAULT_SECTIONS: &'static [&'static str] = &[];
-    const RECORD_KINDS: &'static [&'static str] = &[];
+    const RECORD_SCHEMAS: &'static [latlas_core::record_schema::KindSchema] = &[];
     const INSTRUCTIONS: &'static str = "Derived index of this repository's declared records (tables, crates, tests); files stay the source of truth. Start with la_status.";
     const STATUS_DESCRIPTION: &'static str = "Freshness, dangling references and the schema of the derived index.";
     const IMPACT_DESCRIPTION: &'static str = "What rests on a record (downstream) or what it rests on (upstream).";

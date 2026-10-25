@@ -36,6 +36,7 @@ pub mod jsonl;
 pub mod pack;
 pub mod queries;
 pub mod record;
+pub mod record_schema;
 pub mod search;
 pub mod secrets;
 pub mod settings;

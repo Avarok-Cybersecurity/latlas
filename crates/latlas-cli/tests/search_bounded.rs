@@ -47,7 +47,7 @@ impl Pack for Tiny {
     const IMPACT_FOLLOW_OUT: &'static [Rel] = &[];
     const SECTIONS: &'static [&'static str] = &[];
     const DEFAULT_SECTIONS: &'static [&'static str] = &[];
-    const RECORD_KINDS: &'static [&'static str] = &[];
+    const RECORD_SCHEMAS: &'static [latlas_core::record_schema::KindSchema] = &[];
     const INSTRUCTIONS: &'static str = "test pack";
     const STATUS_DESCRIPTION: &'static str = "status";
     const IMPACT_DESCRIPTION: &'static str = "impact";
@@ -132,6 +132,7 @@ impl PackHost<Tiny> for TinyHost {
         _: &FsSources,
         _: &Bundle,
         _: &Value,
+        _: latlas_ports::UnixMs,
     ) -> Result<(Value, bool)> {
         Err(error!(ErrorCode::LatlasToolArgument, "kind", "none"))
     }

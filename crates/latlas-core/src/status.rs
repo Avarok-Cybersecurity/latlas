@@ -12,6 +12,7 @@ use crate::id::{NodeId, labels, rels};
 use crate::pack::{Pack, SectionCtx};
 use crate::prelude::*;
 use crate::queries;
+use crate::record_schema;
 use crate::tools::LIST_CAP;
 use latlas_error::{ErrorCode, Result, error};
 use serde_json::{Map, Value};
@@ -107,8 +108,15 @@ pub fn ids(v: &[crate::id::NodeId]) -> Value {
     Value::from(v.iter().map(ToString::to_string).collect::<Vec<_>>())
 }
 
-/// 2026-10-23: The sections the core answers for every pack, in schema order.
-pub const CORE_SECTIONS: &[&str] = &["dangling", "freshness", "schema", "files"];
+/// 2026-10-23: The sections the core answers for every pack, in schema order (2026-10-24:
+/// `record_schema`, what `la_record` accepts).
+pub const CORE_SECTIONS: &[&str] = &[
+    "dangling",
+    "freshness",
+    "schema",
+    "files",
+    record_schema::SECTION,
+];
 
 /// 2026-10-23: The core sections of a default status.
 pub const CORE_DEFAULT_SECTIONS: &[&str] = &["dangling", "freshness"];
@@ -225,6 +233,7 @@ pub fn section<P: Pack>(ctx: &SectionCtx<'_, P>, name: &str) -> Result<Value> {
             o.insert("files".into(), Value::from(files::<P>(b, cfg)));
             Value::Object(o)
         }
+        record_schema::SECTION => record_schema::section(P::RECORD_SCHEMAS, ctx.scope),
         "schema" => {
             let mut o = Map::new();
             let labels: Map<String, Value> = labels::<P>()
