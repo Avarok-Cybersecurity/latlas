@@ -98,7 +98,7 @@ impl Resident {
             })?;
         let expect = Expect {
             model: &self.s.model,
-            blueprint_sha256: &self.s.blueprint_sha256,
+            blueprint: &self.s.blueprint_id,
             input_type,
             count: inputs.len(),
             dim: self.s.dimensions,

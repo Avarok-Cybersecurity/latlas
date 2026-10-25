@@ -38,6 +38,17 @@ pub fn sha256(bytes: &[u8]) -> Sha256 {
     Sha256(a)
 }
 
+/// 2026-10-24: The sha256 of `parts` concatenated, without copying them together.
+pub fn sha256_cat(parts: &[&[u8]]) -> Sha256 {
+    let mut h = Hasher::new();
+    for p in parts {
+        h.update(p);
+    }
+    let mut a = [0u8; 32];
+    a.copy_from_slice(&h.finalize());
+    Sha256(a)
+}
+
 /// 2026-10-23: The sha of a record's canonical text.
 pub fn record_sha(text: &str) -> Sha256 {
     sha256(text.as_bytes())

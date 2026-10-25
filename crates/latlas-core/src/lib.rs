@@ -33,6 +33,7 @@ pub mod embed;
 pub mod hash;
 pub mod id;
 pub mod jsonl;
+pub mod kbp;
 pub mod metframe;
 pub mod metlocal;
 pub mod pack;

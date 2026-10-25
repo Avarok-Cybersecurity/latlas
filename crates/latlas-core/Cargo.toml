@@ -11,7 +11,9 @@ description = "Latlas: the pure core: typed ids over an open vocabulary, the bun
 base64 = { workspace = true, features = ["alloc"] }
 latlas-error = { workspace = true }
 latlas-ports = { workspace = true }
+kzx = { workspace = true }
 libm = { workspace = true }
+miniz_oxide = { workspace = true, features = ["with-alloc"] }
 serde = { workspace = true, features = ["alloc", "derive"] }
 serde_json = { workspace = true, features = ["alloc"] }
 sha2 = { workspace = true, features = ["alloc"] }

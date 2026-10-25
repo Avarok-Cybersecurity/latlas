@@ -85,7 +85,7 @@ impl Alias {
     /// 2026-10-24: Embed `inputs` (one request, all of `role`).
     pub async fn embed(&self, role: Role, inputs: &[String]) -> Result<Vec<Vec<f32>>> {
         let input_type = self.s.input_type.of(role);
-        let request = encode_request(&self.s.model, &self.s.blueprint_sha256, input_type, inputs)?;
+        let request = encode_request(&self.s.model, &self.s.blueprint_id, input_type, inputs)?;
         let mut kept = self.kept[slot(role)].lock().await;
         let reuse = kept.take().and_then(|mut c| c.alive().then_some(c));
         let mut child = match reuse {
@@ -100,7 +100,7 @@ impl Alias {
         };
         let expect = Expect {
             model: &self.s.model,
-            blueprint_sha256: &self.s.blueprint_sha256,
+            blueprint: &self.s.blueprint_id,
             input_type,
             count: inputs.len(),
             dim: self.s.dimensions,

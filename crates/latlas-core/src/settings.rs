@@ -62,7 +62,9 @@ pub struct EmbedLayer {
     pub invocation: Option<String>,
     pub met_path: Option<String>,
     pub blueprint: Option<String>,
-    pub blueprint_sha256: Option<String>,
+    /// 2026-10-24: The blueprint's BlueprintId (`met blueprint verify` prints it; met echoes it
+    /// as `blueprint_sha256`), never the file's sha256sum: lite and full files share it.
+    pub blueprint_id: Option<String>,
     pub max_batch: Option<u32>,
     pub boot_deadline_ms: Option<u64>,
     pub request_deadline_ms: Option<u64>,
@@ -182,7 +184,7 @@ pub fn merge(global: &EmbedLayer, project: &EmbedLayer) -> (EmbedLayer, Provenan
         invocation,
         met_path,
         blueprint,
-        blueprint_sha256,
+        blueprint_id,
         max_batch,
         boot_deadline_ms,
         request_deadline_ms,

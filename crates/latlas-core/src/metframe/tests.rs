@@ -6,14 +6,14 @@
 use super::*;
 use crate::hash::sha256;
 
-fn sha() -> Sha256 {
-    sha256(b"blueprint")
+fn sha() -> BlueprintId {
+    BlueprintId(sha256(b"blueprint"))
 }
 
-fn expect(s: &Sha256, count: usize, dim: u32) -> Expect<'_> {
+fn expect(s: &BlueprintId, count: usize, dim: u32) -> Expect<'_> {
     Expect {
         model: "m",
-        blueprint_sha256: s,
+        blueprint: s,
         input_type: "passage",
         count,
         dim,
@@ -26,7 +26,7 @@ fn frame(payload: &[u8]) -> Vec<u8> {
     v
 }
 
-fn header(s: &Sha256, model: &str, prefix: &str, count: usize) -> Vec<u8> {
+fn header(s: &BlueprintId, model: &str, prefix: &str, count: usize) -> Vec<u8> {
     let data: Vec<Value> = (0..count)
         .map(|i| serde_json::json!({"index": i, "object": "embedding"}))
         .collect();
@@ -113,7 +113,7 @@ fn a_truncated_stream_names_how_far_it_got() {
 fn the_header_checks_its_echoes_with_the_space_code() {
     let s = sha();
     check_header(&header(&s, "m", "passage: ", 2), &expect(&s, 2, 4)).unwrap();
-    let other = sha256(b"other blueprint");
+    let other = BlueprintId(sha256(b"other blueprint"));
     for (bytes, what) in [
         (header(&other, "m", "passage: ", 2), "blueprint_sha256"),
         (header(&s, "m2", "passage: ", 2), "model"),
@@ -178,7 +178,7 @@ fn limits_derive_from_max_batch_and_dim() {
     );
 }
 
-fn resident_json(s: &Sha256, items: &[(usize, Vec<f32>)], prefix: &str) -> String {
+fn resident_json(s: &BlueprintId, items: &[(usize, Vec<f32>)], prefix: &str) -> String {
     use base64::Engine as _;
     let data: Vec<Value> = items
         .iter()

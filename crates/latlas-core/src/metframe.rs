@@ -15,10 +15,11 @@
 //!   its bytes are buffered.
 //! - Vectors are bit-exact: `len == count * dim * 4`, else `LatlasEmbedDim` when the length is a
 //!   whole number of vectors of another width, else `LatlasEmbedFrame`.
-//! - An echo of another blueprint, model or prefix than the request's is `LatlasEmbedSpace`.
+//! - An echo of another blueprint, model or prefix than the request's is `LatlasEmbedSpace`. The
+//!   wire field is met's `blueprint_sha256`; its value is the BlueprintId ([`crate::kbp`]).
 
 use crate::embed::{canon_body, request_body, request_object};
-use crate::hash::Sha256;
+use crate::kbp::BlueprintId;
 use crate::prelude::*;
 use base64::Engine as _;
 use latlas_error::{Error, ErrorCode, Result, error};
@@ -55,7 +56,7 @@ impl Limits {
 #[derive(Clone, Copy, Debug)]
 pub struct Expect<'a> {
     pub model: &'a str,
-    pub blueprint_sha256: &'a Sha256,
+    pub blueprint: &'a BlueprintId,
     pub input_type: &'a str,
     pub count: usize,
     pub dim: u32,
@@ -82,16 +83,13 @@ fn push_frame(out: &mut Vec<u8>, which: &str, payload: &[u8]) -> Result<()> {
 /// 2026-10-24: The two request frames for `inputs`, all of one `input_type`.
 pub fn encode_request(
     model: &str,
-    blueprint_sha256: &Sha256,
+    blueprint: &BlueprintId,
     input_type: &str,
     inputs: &[String],
 ) -> Result<Vec<u8>> {
     let mut h = serde_json::Map::new();
     h.insert("model".into(), Value::String(model.to_string()));
-    h.insert(
-        "blueprint_sha256".into(),
-        Value::String(blueprint_sha256.hex()),
-    );
+    h.insert("blueprint_sha256".into(), Value::String(blueprint.hex()));
     h.insert("input_type".into(), Value::String(input_type.to_string()));
     h.insert("count".into(), Value::from(inputs.len()));
     h.insert("encoding".into(), Value::String(ENCODING.into()));
@@ -176,10 +174,10 @@ fn space_err(what: &str, got: &str, want: &str) -> Error {
     )
 }
 
-/// 2026-10-24: The echoed blueprint sha, model and prefix against the request's.
+/// 2026-10-24: The echoed BlueprintId (`blueprint_sha256`), model and prefix against the request's.
 fn check_echo(v: &Value, which: &str, e: &Expect<'_>) -> Result<()> {
     let sha = echo(v, which, "blueprint_sha256")?;
-    let want = e.blueprint_sha256.hex();
+    let want = e.blueprint.hex();
     if sha != want {
         return Err(space_err("blueprint_sha256", sha, &want));
     }

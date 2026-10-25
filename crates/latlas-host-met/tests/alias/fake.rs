@@ -60,7 +60,7 @@ pub fn run(args: &[String]) -> ! {
         std::process::exit(64);
     }
     record_pid(blueprint, std::process::id());
-    let conf = std::fs::read_to_string(blueprint).unwrap();
+    let conf = String::from_utf8_lossy(&std::fs::read(blueprint).unwrap()).into_owned();
     let get = |k: &str| {
         conf.lines()
             .find_map(|l| l.strip_prefix(&format!("{k}=")))

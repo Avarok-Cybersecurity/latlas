@@ -5,9 +5,12 @@
 //! `/v1/embeddings` yet). The server answers in reversed `data` order, so placement by `index`
 //! is exercised, with base64 little-endian f32 vectors.
 
+#[path = "support/kbp.rs"]
+mod kbp;
+
 use base64::Engine as _;
 use latlas_core::embed::{Embedder, Mode, Reply, Role};
-use latlas_core::hash::{Sha256, sha256};
+use latlas_core::kbp::BlueprintId;
 use latlas_core::metlocal::{Invocation, MetSettings};
 use latlas_core::settings::InputTypes;
 use latlas_error::ErrorCode;
@@ -41,7 +44,7 @@ async fn reply(s: &mut TcpStream, status: &str, body: &str) {
     let _ = s.write_all(r.as_bytes()).await;
 }
 
-async fn handle(mut s: TcpStream, script: Script, sha: Sha256) {
+async fn handle(mut s: TcpStream, script: Script, sha: BlueprintId) {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 4096];
     let (head_end, len) = loop {
@@ -93,11 +96,12 @@ async fn handle(mut s: TcpStream, script: Script, sha: Sha256) {
         })
         .collect();
     let body = json!({"object": "list", "data": data, "model": req["model"], "usage": {},
-        "prefix": format!("{input_type}: "), "blueprint_sha256": sha.hex()});
+        "prefix": format!("{input_type}: "), "blueprint_sha256": sha.hex(),
+        "blueprint_trust": "dev-anchor"});
     reply(&mut s, "200 OK", &body.to_string()).await;
 }
 
-async fn serve(script: Script, sha: Sha256) -> u16 {
+async fn serve(script: Script, sha: BlueprintId) -> u16 {
     let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = l.local_addr().unwrap().port();
     tokio::spawn(async move {
@@ -108,25 +112,22 @@ async fn serve(script: Script, sha: Sha256) -> u16 {
     port
 }
 
-fn blueprint(name: &str) -> (String, Sha256) {
+fn blueprint(name: &str) -> (String, BlueprintId) {
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("resident-{name}"));
     std::fs::create_dir_all(&dir).unwrap();
-    let p = dir.join("embed.blueprint");
-    std::fs::write(&p, format!("resident {name}\n")).unwrap();
-    (
-        p.display().to_string(),
-        sha256(format!("resident {name}\n").as_bytes()),
-    )
+    let p = dir.join("embed.kbp");
+    let id = kbp::write(&p, format!("resident {name}\n").as_bytes());
+    (p.display().to_string(), id)
 }
 
 fn settings(name: &str, port: u16, request_ms: u64) -> MetSettings {
-    let (blueprint, blueprint_sha256) = blueprint(name);
+    let (blueprint, blueprint_id) = blueprint(name);
     MetSettings {
         invocation: Invocation::Resident {
             endpoint: format!("http://127.0.0.1:{port}/v1/embeddings"),
         },
         blueprint,
-        blueprint_sha256,
+        blueprint_id,
         model: "m".into(),
         dimensions: DIM,
         input_type: InputTypes {

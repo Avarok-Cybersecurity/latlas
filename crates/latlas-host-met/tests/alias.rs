@@ -7,9 +7,12 @@
 
 #[path = "alias/fake.rs"]
 mod fake;
+#[path = "support/kbp.rs"]
+mod kbp;
 
 use latlas_core::embed::{Embedder, Mode, Reply, Role};
 use latlas_core::hash::sha256;
+use latlas_core::kbp::BlueprintId;
 use latlas_core::metlocal::{Invocation, MetSettings};
 use latlas_core::settings::InputTypes;
 use latlas_error::ErrorCode;
@@ -22,6 +25,7 @@ const DIM: u32 = 5;
 struct Rig {
     dir: PathBuf,
     blueprint: String,
+    blueprint_id: BlueprintId,
 }
 
 impl Rig {
@@ -29,9 +33,13 @@ impl Rig {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("alias-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
-        let blueprint = dir.join("embed.blueprint").display().to_string();
-        std::fs::write(&blueprint, format!("mode={mode}\ndim={DIM}\n")).unwrap();
-        Self { dir, blueprint }
+        let path = dir.join("embed.kbp");
+        let blueprint_id = kbp::write(&path, format!("\nmode={mode}\ndim={DIM}\n").as_bytes());
+        Self {
+            dir,
+            blueprint: path.display().to_string(),
+            blueprint_id,
+        }
     }
 
     fn settings(&self, met_path: &str, boot_ms: u64, request_ms: u64, idle_ms: u64) -> MetSettings {
@@ -42,7 +50,7 @@ impl Rig {
                 idle_exit_ms: idle_ms,
             },
             blueprint: self.blueprint.clone(),
-            blueprint_sha256: sha256(&std::fs::read(&self.blueprint).unwrap()),
+            blueprint_id: self.blueprint_id,
             model: "nvidia/llama-nemotron-embed-vl-1b-v2".into(),
             dimensions: DIM,
             input_type: InputTypes {
@@ -310,12 +318,13 @@ fn a_bad_met_path_or_blueprint_is_the_declared_unavailable_mode() {
             assert_eq!(e.code(), ErrorCode::LatlasEmbedderUnavailable);
         }
         let mut s = rig.settings(&exe, 1, 1, 0);
-        s.blueprint_sha256 = sha256(b"another blueprint");
+        s.blueprint_id = BlueprintId(sha256(b"another blueprint"));
         let Mode::Unavailable { reason } = MetLocal::open(&s, log).await.mode() else {
-            panic!("a sha mismatch must be unavailable")
+            panic!("an id mismatch must be unavailable")
         };
         assert!(
-            reason.contains("hashes to") && reason.contains(&s.blueprint_sha256.hex()),
+            reason.contains(&format!("has BlueprintId {}", rig.blueprint_id.hex()))
+                && reason.contains(&s.blueprint_id.hex()),
             "{reason}"
         );
     });

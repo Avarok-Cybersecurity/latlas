@@ -8,10 +8,13 @@
 //! Invariants:
 //! - Every key the mode uses is required; nothing is defaulted (PCND). A key of the other
 //!   invocation, or of mode `http`, is refused when present: no config is silently ignored.
-//! - The settings are resolved once into [`MetSettings`] (ROTI); the blueprint's sha256 is part of
-//!   [`MetSettings::space`], so a changed blueprint invalidates the vector cache.
+//! - The settings are resolved once into [`MetSettings`] (ROTI); the blueprint's BlueprintId
+//!   ([`crate::kbp`]) is part of [`MetSettings::space`], so a changed blueprint invalidates the
+//!   vector cache. It is the id `met blueprint verify` prints, never the file's sha256: a lite and
+//!   a full file of one build share it.
 
 use crate::hash::Sha256;
+use crate::kbp::BlueprintId;
 use crate::prelude::*;
 use crate::settings::{EmbedLayer, InputTypes, need_for, positive};
 use latlas_error::{ErrorCode, Result, error};
@@ -22,7 +25,7 @@ pub const MET_ONLY: &[&str] = &[
     "invocation",
     "met_path",
     "blueprint",
-    "blueprint_sha256",
+    "blueprint_id",
     "max_batch",
     "boot_deadline_ms",
     "request_deadline_ms",
@@ -75,7 +78,7 @@ pub enum Invocation {
 pub struct MetSettings {
     pub invocation: Invocation,
     pub blueprint: String,
-    pub blueprint_sha256: Sha256,
+    pub blueprint_id: BlueprintId,
     pub model: String,
     pub dimensions: u32,
     pub input_type: InputTypes,
@@ -85,15 +88,15 @@ pub struct MetSettings {
 }
 
 impl MetSettings {
-    /// 2026-10-24: The vector space: model, dimension, document `input_type` and the blueprint's
-    /// sha256 (a different blueprint can mean different numerics).
+    /// 2026-10-24: The vector space: model, dimension, document `input_type` and the BlueprintId
+    /// (a different blueprint can mean different numerics).
     pub fn space(&self) -> String {
         format!(
             "{}/{}/{}/{}",
             self.model,
             self.dimensions,
             self.input_type.document,
-            self.blueprint_sha256.hex()
+            self.blueprint_id.hex()
         )
     }
 }
@@ -206,17 +209,17 @@ pub fn resolve(m: &EmbedLayer) -> Result<MetSettings> {
     };
     let blueprint = need(&m.blueprint, "blueprint")?;
     absolute(&blueprint, "blueprint")?;
-    let sha = need(&m.blueprint_sha256, "blueprint_sha256")?;
-    let blueprint_sha256 = parse_sha256(&sha).ok_or_else(|| {
+    let id = need(&m.blueprint_id, "blueprint_id")?;
+    let blueprint_id = parse_sha256(&id).map(BlueprintId).ok_or_else(|| {
         error!(
             ErrorCode::LatlasConfig,
-            "embedder.blueprint_sha256", "must be 64 lowercase hex digits"
+            "embedder.blueprint_id", "must be 64 lowercase hex digits"
         )
     })?;
     let s = MetSettings {
         invocation,
         blueprint,
-        blueprint_sha256,
+        blueprint_id,
         model: need(&m.model, "model")?,
         dimensions: need_for(&m.dimensions, "dimensions", MODE)?,
         input_type: need_for(&m.input_type, "input_type", MODE)?,

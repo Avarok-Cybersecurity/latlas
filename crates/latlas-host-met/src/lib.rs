@@ -8,8 +8,9 @@
 //! Owner: latlas-host-met.
 //! Invariants:
 //! - The mode is decided once, at [`MetLocal::open`]: [`Mode::Unavailable`] with the reason when
-//!   `met_path` is not an executable file, the blueprint is missing or hashes otherwise, or the
-//!   resident endpoint refuses `GET /v1/models`. There is no fallback to another embedder.
+//!   `met_path` is not an executable file, the blueprint is missing, refused (header, caps,
+//!   codec, raw-body hash) or has another BlueprintId than `blueprint_id`, or the resident
+//!   endpoint refuses `GET /v1/models`. There is no fallback to another embedder.
 //! - The host never answers [`Reply::Retryable`]: a local failure is final for the batch.
 //! - A spawned `met` never outlives the host: its process group is killed on every exit path.
 #![forbid(unsafe_code)]

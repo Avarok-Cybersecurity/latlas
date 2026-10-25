@@ -96,6 +96,9 @@ error_registry! {
         /// 2026-10-24: The embedder answered for another vector space than the config declares
         /// (blueprint sha, model or prefix echo): (what it answered, what the config declares).
         LatlasEmbedSpace = 0x0129 => "embedder answered in space {}; the config declares {}",
+        /// 2026-10-24: A `.kbp` blueprint the met-local host refuses before it derives the
+        /// BlueprintId (header, caps, codec, raw-body hash): (what, why).
+        LatlasBlueprint = 0x012A => "blueprint {}: {}",
         /// 2026-10-23: A Cypher text `la_query` refuses: (reason).
         LatlasCypherRejected = 0x0130 => "cypher refused: {}",
         /// 2026-10-23: A graph store operation failed: (operation, reason).

@@ -12,7 +12,7 @@ const ALIAS: &str = r#"mode = "met-local"
 invocation = "alias"
 met_path = "/opt/met/met"
 blueprint = "/opt/met/embed.blueprint"
-blueprint_sha256 = "2192a98e00000000000000000000000000000000000000000000000000000001"
+blueprint_id = "2192a98e00000000000000000000000000000000000000000000000000000001"
 model = "nvidia/llama-nemotron-embed-vl-1b-v2"
 dimensions = 2048
 input_type = { query = "query", document = "passage" }
@@ -62,7 +62,7 @@ fn an_alias_and_a_resident_config_resolve_with_the_sha_in_the_space() {
             idle_exit_ms: 0
         }
     );
-    assert_eq!(s.blueprint_sha256.hex(), SHA);
+    assert_eq!(s.blueprint_id.hex(), SHA);
     assert_eq!(
         s.space(),
         format!("nvidia/llama-nemotron-embed-vl-1b-v2/2048/passage/{SHA}")
@@ -84,7 +84,7 @@ fn every_key_of_the_mode_is_required() {
         "invocation",
         "met_path",
         "blueprint",
-        "blueprint_sha256",
+        "blueprint_id",
         "model",
         "dimensions",
         "input_type",
@@ -152,9 +152,9 @@ fn relative_paths_a_bad_sha_and_a_remote_endpoint_are_refused() {
         "{e}"
     );
     let e = err(&ALIAS.replace(SHA, &SHA.to_uppercase()));
-    assert!(e.contains("embedder.blueprint_sha256"), "{e}");
+    assert!(e.contains("embedder.blueprint_id"), "{e}");
     let e = err(&ALIAS.replace(SHA, &SHA[..63]));
-    assert!(e.contains("embedder.blueprint_sha256"), "{e}");
+    assert!(e.contains("embedder.blueprint_id"), "{e}");
     for bad in [
         "http://10.0.0.1:18471/v1/embeddings",
         "http://127.0.0.1.evil.com/v1/embeddings",
