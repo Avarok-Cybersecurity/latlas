@@ -12,6 +12,7 @@
 use crate::embedhost::EmbedHost;
 use crate::host::PackHost;
 use crate::pause::PauseCtl;
+use crate::track::TrackCtl;
 use crate::search::Embed;
 use anyhow::Result;
 use latlas_core::embed::{Embedder as _, Mode, Plan};
@@ -52,6 +53,8 @@ pub struct App<P: Pack, H: PackHost<P>> {
     pub embed: Embed,
     /// 2026-10-25: The pause gate over its signal, shared with the server's poll loop.
     pub pause: Arc<PauseCtl>,
+    /// 2026-10-25: `[repo_track]`'s tracker (`None`: tracking is off).
+    pub track: Option<TrackCtl>,
     clock: SystemClock,
 }
 
@@ -167,6 +170,10 @@ impl<P: Pack, H: PackHost<P>> App<P, H> {
         let clock = SystemClock;
         let pause = Arc::new(PauseCtl::new(lock));
         pause.poll(&clock, embed.host()).await;
+        let track = cfg
+            .repo_track
+            .clone()
+            .map(|t| TrackCtl::new(t.clone(), fs.abs(&t.repo)));
         let fresh = Freshness {
             stale_reason: None,
             derived_at_ms: clock.now_unix_ms().0,
@@ -185,6 +192,7 @@ impl<P: Pack, H: PackHost<P>> App<P, H> {
             settings,
             embed,
             pause,
+            track,
             clock,
         })
     }
@@ -240,6 +248,28 @@ impl<P: Pack, H: PackHost<P>> App<P, H> {
         }
     }
 
+    /// 2026-10-25: The freshness every result reports: a failed tracking tick is the stale
+    /// reason (the last good commit is still served) and the tracked commit is the source commit.
+    pub fn freshness(&self) -> Freshness {
+        let mut f = self.fresh.clone();
+        if let Some(t) = &self.track {
+            if f.stale_reason.is_none() {
+                f.stale_reason = t.tracker.error().map(str::to_string);
+            }
+            if let Some(c) = t.tracker.commit() {
+                f.source_commit = Some(c.0.clone());
+            }
+        }
+        f
+    }
+
+    /// 2026-10-25: `[repo_track]`'s `la_status` view (or that it is off).
+    pub fn track_status(&self) -> Value {
+        self.track
+            .as_ref()
+            .map_or_else(latlas_core::track::status_off, |t| t.tracker.status())
+    }
+
     /// 2026-10-23: Wrap a tool result in the freshness envelope.
     pub fn envelope(&self, body: Value) -> Value {
         let mut o = match body {
@@ -250,19 +280,14 @@ impl<P: Pack, H: PackHost<P>> App<P, H> {
                 m
             }
         };
+        let fresh = self.freshness();
         o.insert("bundle_digest".into(), Value::String(self.digest.clone()));
-        o.insert(
-            "derived_at_ms".into(),
-            Value::from(self.fresh.derived_at_ms),
-        );
-        o.insert(
-            "stale".into(),
-            Value::Bool(self.fresh.stale_reason.is_some()),
-        );
-        if let Some(c) = &self.fresh.source_commit {
+        o.insert("derived_at_ms".into(), Value::from(fresh.derived_at_ms));
+        o.insert("stale".into(), Value::Bool(fresh.stale_reason.is_some()));
+        if let Some(c) = &fresh.source_commit {
             o.insert("source_commit".into(), Value::String(c.clone()));
         }
-        if let Some(r) = &self.fresh.stale_reason {
+        if let Some(r) = &fresh.stale_reason {
             o.insert("stale_reason".into(), Value::String(r.clone()));
         }
         if !o.contains_key("mode") {

@@ -177,8 +177,15 @@ where
     let app = App::<P, H>::open(cfg, data).await?;
     crate::search::start_warming(&app).await?;
     let (pause, host) = (app.pause.clone(), app.embed.host().cloned());
+    let track = app
+        .track
+        .as_ref()
+        .map(|t| (t.git.clone(), t.tracker.cfg.clone()));
     let app = std::sync::Arc::new(tokio::sync::Mutex::new(app));
     tokio::spawn(crate::pause::watch(app.clone(), pause, host));
+    if let Some((git, cfg)) = track {
+        tokio::spawn(crate::track::watch(app.clone(), git, cfg));
+    }
     let server = Server {
         app,
         name: id.name,
