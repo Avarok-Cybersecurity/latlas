@@ -9,7 +9,10 @@
 //! - The child never outlives the host: dropping a [`MetChild`] SIGKILLs its process group
 //!   (and tokio's `kill_on_drop` kills the leader), on every path including a panic.
 //! - [`MetChild::terminate`] is SIGINT to the group, then SIGKILL after [`GRACE`], then reap.
+//! - (2026-10-25) The child's environment is cleared, then given only [`CHILD_ENV`]: nothing
+//!   else the host inherited (an API key, `CLAUDE_CODE_MESSAGING_TOKEN`) reaches `met`.
 
+use std::ffi::OsString;
 use std::io::Write as _;
 use std::path::Path;
 use std::process::{ExitStatus, Stdio};
@@ -27,6 +30,29 @@ use tokio::time::Instant;
 /// 2026-10-24: SIGINT to SIGKILL (the design's 2 s), and the wait for a child to exit by itself
 /// once its stdin is closed.
 pub const GRACE: Duration = Duration::from_secs(2);
+
+/// 2026-10-25: The only variables a `met embed` child gets, each only when the host has it:
+/// `PATH`; `HOME`, `HF_HOME` and `HF_HUB_CACHE`, which locate the weights in the Hugging Face
+/// cache (the blueprint carries none); `CUDA_VISIBLE_DEVICES`; `CUDA_CACHE_PATH`, the driver's
+/// PTX JIT cache (else under `HOME`); `LD_LIBRARY_PATH`, where the CUDA libraries load from.
+/// `HF_TOKEN` is left out on purpose: the alias never downloads.
+pub const CHILD_ENV: &[&str] = &[
+    "PATH",
+    "HOME",
+    "HF_HOME",
+    "HF_HUB_CACHE",
+    "CUDA_VISIBLE_DEVICES",
+    "CUDA_CACHE_PATH",
+    "LD_LIBRARY_PATH",
+];
+
+/// 2026-10-25: [`CHILD_ENV`] as the host holds it, read once by the host that spawns (ROTI).
+pub fn child_env() -> Vec<(OsString, OsString)> {
+    CHILD_ENV
+        .iter()
+        .filter_map(|k| std::env::var_os(k).map(|v| (OsString::from(k), v)))
+        .collect()
+}
 
 /// 2026-10-24: A running `met embed`.
 pub struct MetChild {
@@ -52,13 +78,15 @@ fn signal_group(pgid: Option<Pid>, sig: Signal) {
 
 impl MetChild {
     /// 2026-10-24: Spawn `met_path embed --blueprint <b> --input-type <t> --idle-exit-ms <n>`,
-    /// then (2026-10-25) `--trust-mode production` or `--trust-mode dev-anchor --trust-anchor <a>`.
+    /// then (2026-10-25) `--trust-mode production` or `--trust-mode dev-anchor --trust-anchor <a>`,
+    /// with exactly the environment `env` (from [`child_env`]).
     pub fn spawn(
         met_path: &str,
         blueprint: &str,
         input_type: &str,
         idle_exit_ms: u64,
         trust: &MetTrust,
+        env: &[(OsString, OsString)],
         log: &Path,
     ) -> Result<Self, Error> {
         let spawn_err =
@@ -69,6 +97,7 @@ impl MetChild {
             .open(log)
             .map_err(|e| spawn_err(format!("log {} ({:?})", log.display(), e.kind())))?;
         let mut cmd = Command::new(met_path);
+        cmd.env_clear().envs(env.iter().map(|(k, v)| (k, v)));
         cmd.arg("embed")
             .arg("--blueprint")
             .arg(blueprint)
