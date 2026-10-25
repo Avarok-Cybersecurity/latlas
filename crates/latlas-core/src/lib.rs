@@ -37,6 +37,7 @@ pub mod kbp;
 pub mod metframe;
 pub mod metlocal;
 pub mod pack;
+pub mod pause;
 pub mod queries;
 pub mod record;
 pub mod record_schema;

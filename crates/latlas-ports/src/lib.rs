@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-//! 2026-10-23: The port traits Latlas's pure code depends on: [`Clock`], [`Timer`] and the shared
-//! time values. Hosts implement them (`latlas-host-native`); a binary is the only place a host
+//! 2026-10-23: The port traits Latlas's pure code depends on: [`Clock`], [`Timer`], (2026-10-25)
+//! [`PauseSignal`] and the shared time values. Hosts implement them (`latlas-host-native`); a binary is the only place a host
 //! is chosen.
 //!
 //! Owner: latlas-ports.
@@ -17,9 +17,11 @@
 )]
 
 mod clock;
+mod pause;
 mod time;
 mod timer;
 
 pub use clock::Clock;
+pub use pause::PauseSignal;
 pub use time::{DurNs, MonoNs, UnixMs};
 pub use timer::Timer;

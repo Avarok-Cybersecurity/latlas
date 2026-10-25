@@ -11,6 +11,10 @@ mod env;
 mod fake;
 #[path = "support/kbp.rs"]
 mod kbp;
+#[path = "alias/pause.rs"]
+mod pause;
+#[path = "alias/procs.rs"]
+mod procs;
 
 use latlas_core::embed::{Embedder, Mode, Reply, Role};
 use latlas_core::hash::sha256;
@@ -19,6 +23,7 @@ use latlas_core::metlocal::{Invocation, MetSettings, MetTrust};
 use latlas_core::settings::InputTypes;
 use latlas_error::ErrorCode;
 use latlas_host_met::MetLocal;
+use procs::gone;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
@@ -120,24 +125,6 @@ impl Rig {
 
 fn texts(n: usize) -> Vec<String> {
     (0..n).map(|i| format!("text number {i} \u{e9}")).collect()
-}
-
-/// 2026-10-24: Whether `pid` is gone (no `/proc` entry, or a zombie awaiting its reaper).
-fn gone(pid: u32) -> bool {
-    let t0 = Instant::now();
-    loop {
-        let dead = match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
-            Err(_) => true,
-            Ok(s) => s
-                .rsplit(')')
-                .next()
-                .is_some_and(|r| r.trim_start().starts_with('Z')),
-        };
-        if dead || t0.elapsed() > Duration::from_secs(3) {
-            return dead;
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    }
 }
 
 fn block<F: std::future::Future>(f: F) -> F::Output {
@@ -464,6 +451,14 @@ const CASES: &[(&str, fn())] = &[
     ("max_batch", more_inputs_than_max_batch_are_refused_unsent),
     ("trust_flags", trust_flags_reach_met),
     ("host_env", env::the_host_env_never_reaches_met),
+    (
+        "pause_idle",
+        pause::a_suspend_stops_the_kept_child_and_spawns_nothing_until_resume,
+    ),
+    (
+        "pause_in_flight",
+        pause::a_suspend_cuts_off_the_exchange_in_flight,
+    ),
     (
         "trust_anchor_unavailable",
         a_missing_or_non_file_trust_anchor_is_the_declared_unavailable_mode,

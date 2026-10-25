@@ -34,6 +34,7 @@
 0x0128 LatlasEmbedFrame
 0x0129 LatlasEmbedSpace
 0x012a LatlasBlueprint
+0x012b LatlasPaused
 0x0130 LatlasCypherRejected
 0x0131 LatlasStore
 0x0132 LatlasToolArgument

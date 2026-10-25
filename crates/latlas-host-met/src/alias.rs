@@ -10,6 +10,9 @@
 //!   reported, after the child's group is terminated (SIGINT, SIGKILL after 2 s).
 //! - Any failure terminates the child: its stream position is unknown, so it is never reused.
 //! - A child is kept per role, because `--input-type` is fixed for its life.
+//! - (2026-10-25) While suspended ([`Alias::suspend`]) nothing is spawned, an exchange in flight
+//!   is cut off (its child terminated) and every kept child is stopped; a request answers
+//!   `LatlasPaused` until [`Alias::resume`].
 
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -22,7 +25,7 @@ use latlas_core::metframe::{
 use latlas_core::metlocal::{MetSettings, MetTrust};
 use latlas_error::{Error, ErrorCode, Result, error};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, watch};
 use tokio::time::{Instant, timeout_at};
 
 use crate::child::{MetChild, child_env};
@@ -39,6 +42,8 @@ pub struct Alias {
     env: Vec<(OsString, OsString)>,
     /// 2026-10-24: The kept child per role (`[query, document]`), when `idle_exit_ms > 0`.
     kept: [Mutex<Option<MetChild>>; 2],
+    /// 2026-10-25: Suspended (`true`) or not; every exchange watches it.
+    paused: watch::Sender<bool>,
 }
 
 /// 2026-10-24: Why an exchange stopped, before the child is dealt with.
@@ -81,7 +86,32 @@ impl Alias {
             log,
             env: child_env(),
             kept: [Mutex::new(None), Mutex::new(None)],
+            paused: watch::Sender::new(false),
         }
+    }
+
+    /// 2026-10-25: Suspend: refuse new requests, cut off the one in flight, then stop each kept
+    /// child (stdin closed, then SIGINT and SIGKILL, each after `child::GRACE`).
+    pub async fn suspend(&self) {
+        self.paused.send_replace(true);
+        for slot in &self.kept {
+            let child = slot.lock().await.take();
+            if let Some(mut c) = child {
+                c.finish().await;
+            }
+        }
+    }
+
+    /// 2026-10-25: Resume: the next request spawns as usual.
+    pub fn resume(&self) {
+        self.paused.send_replace(false);
+    }
+
+    fn refused() -> Error {
+        error!(
+            ErrorCode::LatlasPaused,
+            "the host suspended the embedder (no process is spawned)"
+        )
     }
 
     /// 2026-10-24: The settings it runs with.
@@ -94,6 +124,10 @@ impl Alias {
         let input_type = self.s.input_type.of(role);
         let request = encode_request(&self.s.model, &self.s.blueprint_id, input_type, inputs)?;
         let mut kept = self.kept[slot(role)].lock().await;
+        let mut paused = self.paused.subscribe();
+        if *paused.borrow_and_update() {
+            return Err(Self::refused());
+        }
         let reuse = kept.take().and_then(|mut c| c.alive().then_some(c));
         let mut child = match reuse {
             Some(c) => c,
@@ -114,7 +148,11 @@ impl Alias {
             count: inputs.len(),
             dim: self.s.dimensions,
         };
-        match self.exchange(&mut child, &request, &expect).await {
+        let run = tokio::select! {
+            r = self.exchange(&mut child, &request, &expect) => r,
+            _ = paused.wait_for(|p| *p) => Err(Stop::Err(Self::refused())),
+        };
+        match run {
             Ok(v) => {
                 child.fresh = false;
                 if self.idle_exit_ms > 0 {

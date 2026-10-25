@@ -11,7 +11,7 @@ description = "Latlas: the met-local embedder host: spawns the `met embed` alias
 latlas-core = { workspace = true }
 latlas-error = { workspace = true }
 rustix = { version = "1.1", default-features = false, features = ["std", "process"] }
-tokio = { workspace = true, features = ["rt", "time", "process", "io-util", "sync"] }
+tokio = { workspace = true, features = ["rt", "time", "process", "io-util", "sync", "macros"] }
 ureq = { workspace = true, features = ["rustls"] }
 
 # 2026-10-24: tests/alias.rs is its own `main` (harness = false) so the test binary can also be

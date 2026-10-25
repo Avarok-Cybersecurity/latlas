@@ -16,6 +16,7 @@ pub mod gates;
 pub mod handlers;
 pub mod host;
 pub mod mcp;
+pub mod pause;
 pub mod score;
 pub mod search;
 

@@ -13,10 +13,13 @@
 //! - A search never waits for the warmer (it answers `embedding index warming: n/m`), and the
 //!   query's embedding is cut off at `limits.search_deadline_ms` (2026-10-23: a cold cache made
 //!   the first search embed 1311 texts inline, minutes under the app lock).
+//! - (2026-10-25) While paused (`crate::pause`) a search answers `graph_only` with the pause's
+//!   reason at once, the warmer starts no run and a running one sends no further batch.
 
 use crate::app::App;
 use crate::embedhost::EmbedHost;
 use crate::host::PackHost;
+use crate::pause::PauseCtl;
 use latlas_core::Pack;
 use latlas_core::embed::{Embedder, Mode, Plan, Role, cosine, embed_all, missing};
 use latlas_core::hash::Sha256;
@@ -41,6 +44,16 @@ pub enum Embed {
         plan: Plan,
         warm: Arc<StdMutex<Warm>>,
     },
+}
+
+impl Embed {
+    /// 2026-10-25: The host, when the embedder is on.
+    pub fn host(&self) -> Option<&EmbedHost> {
+        match self {
+            Self::Off(_) => None,
+            Self::On { host, .. } => Some(host),
+        }
+    }
 }
 
 /// 2026-10-23: The background warmer's state.
@@ -82,17 +95,23 @@ pub fn warming_reason(
 }
 
 /// 2026-10-23: Embed `todo` one batch at a time, persisting each batch before the next is sent,
-/// so a stopped or killed run keeps its progress. Never holds the app.
+/// so a stopped or killed run keeps its progress. Never holds the app. (2026-10-25) Stops with
+/// `LatlasPaused` before a batch while paused; that stop is not recorded as a failure.
 async fn warm_run(
     host: EmbedHost,
     cache: Arc<Mutex<TextStore>>,
     plan: Plan,
     warm: Arc<StdMutex<Warm>>,
+    pause: Arc<PauseCtl>,
     todo: Vec<(Sha256, String)>,
 ) -> Result<usize> {
     let mut n = 0;
     let mut res = Ok(());
     for chunk in todo.chunks(plan.batch.max(1)) {
+        if let Some(r) = pause.reason() {
+            res = Err(error!(ErrorCode::LatlasPaused, r));
+            break;
+        }
         let got = embed_all(
             &host,
             &SystemClock,
@@ -118,6 +137,7 @@ async fn warm_run(
     w.stopped = res
         .as_ref()
         .err()
+        .filter(|e| e.code() != ErrorCode::LatlasPaused)
         .map(|e| format!("{}: {e}", e.code().name()));
     res.map(|()| n)
 }
@@ -142,6 +162,8 @@ async fn todo_of<P: Pack, H: PackHost<P>>(
 
 /// 2026-10-23: Start the background warmer when the cache lacks texts and none is running; never
 /// waits for it. Returns the reason a search answers `graph_only` until the cache is complete.
+/// (2026-10-25) While paused it starts nothing and returns the pause's reason, which is how a
+/// search answers `graph_only` with it (the query is never embedded).
 pub async fn start_warming<P: Pack, H: PackHost<P>>(app: &App<P, H>) -> Result<Option<String>> {
     let (todo, cached, total) = todo_of(app).await?;
     let Embed::On {
@@ -153,6 +175,9 @@ pub async fn start_warming<P: Pack, H: PackHost<P>>(app: &App<P, H>) -> Result<O
     else {
         return Ok(None);
     };
+    if let Some(r) = app.pause.reason() {
+        return Ok(Some(r));
+    }
     let mut w = warm_of(warm);
     let reason = warming_reason(cached, total, todo.len(), w.stopped.as_deref());
     if reason.is_some() && !w.running {
@@ -162,10 +187,19 @@ pub async fn start_warming<P: Pack, H: PackHost<P>>(app: &App<P, H>) -> Result<O
             cache.clone(),
             *plan,
             warm.clone(),
+            app.pause.clone(),
             todo,
         ));
     }
     Ok(reason)
+}
+
+/// 2026-10-25: [`start_warming`] after a resume, for the texts recorded while paused; a failure
+/// (the cache store's) is kept as the warmer's stop reason, which the next search reports.
+pub async fn resume_warming<P: Pack, H: PackHost<P>>(app: &App<P, H>) {
+    if let (Err(e), Embed::On { warm, .. }) = (start_warming(app).await, &app.embed) {
+        warm_of(warm).stopped = Some(format!("{}: {e}", e.code().name()));
+    }
 }
 
 /// 2026-10-23: Bring the cache up to date and wait for it (the recall gate, which must measure
@@ -182,7 +216,15 @@ pub async fn warm_blocking<P: Pack, H: PackHost<P>>(app: &App<P, H>) -> Result<u
         return Ok(0);
     };
     warm_of(warm).running = true;
-    warm_run(host.clone(), cache.clone(), *plan, warm.clone(), todo).await
+    warm_run(
+        host.clone(),
+        cache.clone(),
+        *plan,
+        warm.clone(),
+        app.pause.clone(),
+        todo,
+    )
+    .await
 }
 
 async fn query_vector(host: &EmbedHost, text: &str, plan: &Plan) -> Result<Vec<f32>> {
