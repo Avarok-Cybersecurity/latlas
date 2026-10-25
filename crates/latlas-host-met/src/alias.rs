@@ -18,7 +18,7 @@ use latlas_core::embed::Role;
 use latlas_core::metframe::{
     Expect, FrameReader, Limits, check_header, decode_vectors, encode_request,
 };
-use latlas_core::metlocal::MetSettings;
+use latlas_core::metlocal::{MetSettings, MetTrust};
 use latlas_error::{Error, ErrorCode, Result, error};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::Mutex;
@@ -32,6 +32,7 @@ pub struct Alias {
     met_path: String,
     boot_deadline_ms: u64,
     idle_exit_ms: u64,
+    trust: MetTrust,
     log: PathBuf,
     /// 2026-10-24: The kept child per role (`[query, document]`), when `idle_exit_ms > 0`.
     kept: [Mutex<Option<MetChild>>; 2],
@@ -65,6 +66,7 @@ impl Alias {
         met_path: String,
         boot_deadline_ms: u64,
         idle_exit_ms: u64,
+        trust: MetTrust,
         log: PathBuf,
     ) -> Self {
         Self {
@@ -72,6 +74,7 @@ impl Alias {
             met_path,
             boot_deadline_ms,
             idle_exit_ms,
+            trust,
             log,
             kept: [Mutex::new(None), Mutex::new(None)],
         }
@@ -95,6 +98,7 @@ impl Alias {
                 &self.s.blueprint,
                 input_type,
                 self.idle_exit_ms,
+                &self.trust,
                 &self.log,
             )?,
         };

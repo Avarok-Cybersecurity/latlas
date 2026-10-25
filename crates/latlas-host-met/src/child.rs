@@ -16,6 +16,7 @@ use std::process::{ExitStatus, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use latlas_core::metlocal::MetTrust;
 use latlas_error::{Error, ErrorCode, error};
 use rustix::process::{Pid, Signal, kill_process_group};
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -50,12 +51,14 @@ fn signal_group(pgid: Option<Pid>, sig: Signal) {
 }
 
 impl MetChild {
-    /// 2026-10-24: Spawn `met_path embed --blueprint <b> --input-type <t> --idle-exit-ms <n>`.
+    /// 2026-10-24: Spawn `met_path embed --blueprint <b> --input-type <t> --idle-exit-ms <n>`,
+    /// then (2026-10-25) `--trust-mode production` or `--trust-mode dev-anchor --trust-anchor <a>`.
     pub fn spawn(
         met_path: &str,
         blueprint: &str,
         input_type: &str,
         idle_exit_ms: u64,
+        trust: &MetTrust,
         log: &Path,
     ) -> Result<Self, Error> {
         let spawn_err =
@@ -65,14 +68,22 @@ impl MetChild {
             .append(true)
             .open(log)
             .map_err(|e| spawn_err(format!("log {} ({:?})", log.display(), e.kind())))?;
-        let mut child = Command::new(met_path)
-            .arg("embed")
+        let mut cmd = Command::new(met_path);
+        cmd.arg("embed")
             .arg("--blueprint")
             .arg(blueprint)
             .arg("--input-type")
             .arg(input_type)
             .arg("--idle-exit-ms")
             .arg(idle_exit_ms.to_string())
+            .arg("--trust-mode");
+        match trust {
+            MetTrust::Production => cmd.arg("production"),
+            MetTrust::DevAnchor { anchor } => {
+                cmd.arg("dev-anchor").arg("--trust-anchor").arg(anchor)
+            }
+        };
+        let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

@@ -8,7 +8,8 @@
 //! Owner: latlas-host-met.
 //! Invariants:
 //! - The mode is decided once, at [`MetLocal::open`]: [`Mode::Unavailable`] with the reason when
-//!   `met_path` is not an executable file, the blueprint is missing, refused (header, caps,
+//!   `met_path` is not an executable file, (2026-10-25) a dev-anchor `trust_anchor` is not a
+//!   readable regular file, the blueprint is missing, refused (header, caps,
 //!   codec, raw-body hash) or has another BlueprintId than `blueprint_id`, or the resident
 //!   endpoint refuses `GET /v1/models`. There is no fallback to another embedder.
 //! - The host never answers [`Reply::Retryable`]: a local failure is final for the batch.
@@ -52,11 +53,13 @@ impl MetLocal {
                 met_path,
                 boot_deadline_ms,
                 idle_exit_ms,
+                trust,
             } => Self::Alias(Arc::new(alias::Alias::new(
                 s.clone(),
                 met_path.clone(),
                 *boot_deadline_ms,
                 *idle_exit_ms,
+                trust.clone(),
                 log,
             ))),
             Invocation::Resident { endpoint } => Self::Resident(Arc::new(resident::Resident::new(

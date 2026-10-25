@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! 2026-10-24: The preflight that decides the declared mode once: `met_path` is an executable
-//! file (alias), the blueprint's BlueprintId is the configured `blueprint_id`, and (resident) the
-//! endpoint answers `GET .../models` with 200. Blocking; [`crate::MetLocal::open`] runs it off the
-//! executor.
+//! file and (2026-10-25) a dev-anchor `trust_anchor` a readable regular file (alias), the
+//! blueprint's BlueprintId is the configured `blueprint_id`, and (resident) the endpoint answers
+//! `GET .../models` with 200. Blocking; [`crate::MetLocal::open`] runs it off the executor.
 //!
 //! Owner: latlas-host-met.
 //! Invariants:
@@ -20,7 +20,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::time::Duration;
 
 use latlas_core::kbp::{self, BlueprintId, DecodeMemory, HEADER_LEN, Header, MAX_TEXT_LEN};
-use latlas_core::metlocal::{Invocation, MetSettings, models_url};
+use latlas_core::metlocal::{Invocation, MetSettings, MetTrust, models_url};
 
 /// 2026-10-24: The most model memory one kzx block may use while the id is derived: 1 GiB, the
 /// budget met's own server passes (an embed blueprint's lite body needs far less).
@@ -32,6 +32,18 @@ pub fn executable(path: &str) -> Result<(), String> {
         Ok(m) if m.is_file() && m.permissions().mode() & 0o111 != 0 => Ok(()),
         Ok(_) => Err(format!("met_path {path} is not an executable file")),
         Err(e) => Err(format!("met_path {path} is unusable ({:?})", e.kind())),
+    }
+}
+
+/// 2026-10-25: `path` (the dev trust anchor) is a regular file this process can open, so a
+/// missing anchor is the declared unavailable mode at startup, not a boot failure per request.
+pub fn anchor(path: &str) -> Result<(), String> {
+    match std::fs::metadata(path) {
+        Ok(m) if m.is_file() => File::open(path)
+            .map(drop)
+            .map_err(|e| format!("trust_anchor {path} is unreadable ({:?})", e.kind())),
+        Ok(_) => Err(format!("trust_anchor {path} is not a regular file")),
+        Err(e) => Err(format!("trust_anchor {path} is unusable ({:?})", e.kind())),
     }
 }
 
@@ -98,8 +110,14 @@ pub fn probe(endpoint: &str, deadline_ms: u64) -> Result<(), String> {
 
 /// 2026-10-24: Every check the configured invocation needs.
 pub fn preflight(s: &MetSettings) -> Result<(), String> {
-    if let Invocation::Alias { met_path, .. } = &s.invocation {
+    if let Invocation::Alias {
+        met_path, trust, ..
+    } = &s.invocation
+    {
         executable(met_path)?;
+        if let MetTrust::DevAnchor { anchor: a } = trust {
+            anchor(a)?;
+        }
     }
     blueprint(&s.blueprint, &s.blueprint_id)?;
     if let Invocation::Resident { endpoint } = &s.invocation {

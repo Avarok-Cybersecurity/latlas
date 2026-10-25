@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 //! 2026-10-24: The fake `met embed`: this test binary run as `<exe> embed --blueprint <b>
-//! --input-type <t> --idle-exit-ms <n>`. It speaks the frames by hand (not through
+//! --input-type <t> --idle-exit-ms <n> --trust-mode <m> [--trust-anchor <a>]`. It speaks the frames by hand (not through
 //! latlas-core's codec, so a codec bug cannot hide behind a matching fake). Its behaviour is the
 //! blueprint file's `mode=` line, so the production argv is unchanged; every spawn appends its
-//! pid (and a grandchild's, for the deadline modes) to `<blueprint>.pids`.
+//! pid (and a grandchild's, for the deadline modes) to `<blueprint>.pids` and (2026-10-25) its
+//! argv, tab-joined, to `<blueprint>.argv`. Like met, it refuses to boot without a well-formed
+//! `--trust-mode`.
 
 use serde_json::{Value, json};
 use std::io::{Read, Write};
@@ -51,14 +53,32 @@ fn record_pid(blueprint: &str, pid: u32) {
 
 /// 2026-10-24: Run as the fake; never returns.
 pub fn run(args: &[String]) -> ! {
-    let [_, embed, b, blueprint, t, input_type, i, _idle] = args else {
+    let refuse = || -> ! {
         eprintln!("fake-met: argv {args:?}");
         std::process::exit(64);
     };
+    let [_, embed, b, blueprint, t, input_type, i, _idle, trust @ ..] = args else {
+        refuse()
+    };
     if embed != "embed" || b != "--blueprint" || t != "--input-type" || i != "--idle-exit-ms" {
-        eprintln!("fake-met: argv {args:?}");
-        std::process::exit(64);
+        refuse()
     }
+    let trusted = match trust {
+        [m, p] => m == "--trust-mode" && p == "production",
+        [m, d, a, path] => {
+            m == "--trust-mode" && d == "dev-anchor" && a == "--trust-anchor" && !path.is_empty()
+        }
+        _ => false,
+    };
+    if !trusted {
+        refuse()
+    }
+    let mut argv = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(format!("{blueprint}.argv"))
+        .unwrap();
+    writeln!(argv, "{}", args[1..].join("\t")).unwrap();
     record_pid(blueprint, std::process::id());
     let conf = String::from_utf8_lossy(&std::fs::read(blueprint).unwrap()).into_owned();
     let get = |k: &str| {

@@ -69,6 +69,11 @@ pub struct EmbedLayer {
     pub boot_deadline_ms: Option<u64>,
     pub request_deadline_ms: Option<u64>,
     pub idle_exit_ms: Option<u64>,
+    /// 2026-10-25: How the alias's `met` trusts the blueprint's signature: `production` (only
+    /// the anchors compiled into met) or `dev-anchor` (the root key file `trust_anchor`).
+    pub trust_mode: Option<String>,
+    /// 2026-10-25: The dev root public key file (absolute) for `trust_mode = "dev-anchor"`.
+    pub trust_anchor: Option<String>,
 }
 
 /// 2026-10-23: The request's `input_type` per [`Role`] (`{ query = "query", document = "passage" }`
@@ -188,7 +193,9 @@ pub fn merge(global: &EmbedLayer, project: &EmbedLayer) -> (EmbedLayer, Provenan
         max_batch,
         boot_deadline_ms,
         request_deadline_ms,
-        idle_exit_ms
+        idle_exit_ms,
+        trust_mode,
+        trust_anchor
     );
     (m, prov)
 }

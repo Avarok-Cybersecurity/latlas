@@ -12,6 +12,10 @@
 //!   ([`crate::kbp`]) is part of [`MetSettings::space`], so a changed blueprint invalidates the
 //!   vector cache. It is the id `met blueprint verify` prints, never the file's sha256: a lite and
 //!   a full file of one build share it.
+//! - 2026-10-25: The alias states how its `met` trusts the blueprint's signature ([`MetTrust`]):
+//!   met refuses to boot a signed blueprint without `--trust-mode`, so there is no default. A
+//!   resident config refuses the trust keys: its `met serve` is started by its operator, with
+//!   the operator's own trust flags.
 
 use crate::hash::Sha256;
 use crate::kbp::BlueprintId;
@@ -30,6 +34,8 @@ pub const MET_ONLY: &[&str] = &[
     "boot_deadline_ms",
     "request_deadline_ms",
     "idle_exit_ms",
+    "trust_mode",
+    "trust_anchor",
 ];
 
 /// 2026-10-24: The keys only mode `http` uses (and `reason`, which only `unavailable` uses);
@@ -48,7 +54,13 @@ pub const NOT_MET: &[&str] = &[
 ];
 
 /// 2026-10-24: The keys only `invocation = "alias"` uses.
-pub const ALIAS_ONLY: &[&str] = &["met_path", "boot_deadline_ms", "idle_exit_ms"];
+pub const ALIAS_ONLY: &[&str] = &[
+    "met_path",
+    "boot_deadline_ms",
+    "idle_exit_ms",
+    "trust_mode",
+    "trust_anchor",
+];
 
 /// 2026-10-24: The keys only `invocation = "resident"` uses.
 pub const RESIDENT_ONLY: &[&str] = &["endpoint"];
@@ -56,6 +68,16 @@ pub const RESIDENT_ONLY: &[&str] = &["endpoint"];
 /// 2026-10-24: The attempts per batch the pipeline makes against met-local: the host never
 /// answers `Reply::Retryable` (a local process has no rate limit), so a failure is final.
 pub const MET_ATTEMPTS: u32 = 1;
+
+/// 2026-10-25: The signing trust the alias passes to `met embed` (`--trust-mode`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MetTrust {
+    /// 2026-10-25: `--trust-mode production`: only the anchors compiled into the met binary.
+    Production,
+    /// 2026-10-25: `--trust-mode dev-anchor --trust-anchor <anchor>`: the dev root public key
+    /// file at `anchor` (absolute) is trusted; met reports the mode as `trust: "dev-anchor"`.
+    DevAnchor { anchor: String },
+}
 
 /// 2026-10-24: How Latlas reaches `met`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -68,6 +90,8 @@ pub enum Invocation {
         /// 2026-10-24: 0: the child exits after its one request; else it is kept for further
         /// requests and exits by itself after this long without one.
         idle_exit_ms: u64,
+        /// 2026-10-25: The blueprint signature trust met boots with.
+        trust: MetTrust,
     },
     /// 2026-10-24: POST a running `met serve` at `endpoint` (`.../v1/embeddings`, loopback).
     Resident { endpoint: String },
@@ -170,6 +194,27 @@ fn absolute(v: &str, key: &'static str) -> Result<()> {
     ))
 }
 
+/// 2026-10-25: The alias's [`MetTrust`]: `trust_mode` required; `production` refuses a
+/// `trust_anchor`, `dev-anchor` requires an absolute one.
+fn trust(m: &EmbedLayer, mode: &str) -> Result<MetTrust> {
+    match need_for(&m.trust_mode, "trust_mode", mode)?.as_str() {
+        "production" => {
+            refuse_keys(m, &["trust_anchor"], "trust_mode production")?;
+            Ok(MetTrust::Production)
+        }
+        "dev-anchor" => {
+            let anchor = need_for(&m.trust_anchor, "trust_anchor", "trust_mode dev-anchor")?;
+            absolute(&anchor, "trust_anchor")?;
+            Ok(MetTrust::DevAnchor { anchor })
+        }
+        other => Err(error!(
+            ErrorCode::LatlasConfig,
+            "embedder.trust_mode",
+            format!("`{other}` is not production or dev-anchor")
+        )),
+    }
+}
+
 /// 2026-10-24: Resolve a merged layer whose `mode` is `met-local`.
 pub fn resolve(m: &EmbedLayer) -> Result<MetSettings> {
     const MODE: &str = "mode met-local";
@@ -186,6 +231,7 @@ pub fn resolve(m: &EmbedLayer) -> Result<MetSettings> {
                 met_path,
                 boot_deadline_ms,
                 idle_exit_ms: need_for(&m.idle_exit_ms, "idle_exit_ms", MODE)?,
+                trust: trust(m, MODE)?,
             }
         }
         "resident" => {

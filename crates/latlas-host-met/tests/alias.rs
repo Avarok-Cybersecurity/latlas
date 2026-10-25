@@ -13,7 +13,7 @@ mod kbp;
 use latlas_core::embed::{Embedder, Mode, Reply, Role};
 use latlas_core::hash::sha256;
 use latlas_core::kbp::BlueprintId;
-use latlas_core::metlocal::{Invocation, MetSettings};
+use latlas_core::metlocal::{Invocation, MetSettings, MetTrust};
 use latlas_core::settings::InputTypes;
 use latlas_error::ErrorCode;
 use latlas_host_met::MetLocal;
@@ -26,6 +26,7 @@ struct Rig {
     dir: PathBuf,
     blueprint: String,
     blueprint_id: BlueprintId,
+    trust: MetTrust,
 }
 
 impl Rig {
@@ -39,6 +40,9 @@ impl Rig {
             dir,
             blueprint: path.display().to_string(),
             blueprint_id,
+            // 2026-10-25: Production unless a case sets otherwise: it needs no anchor file, and
+            // `trust_flags_reach_met` covers both modes' argv.
+            trust: MetTrust::Production,
         }
     }
 
@@ -48,6 +52,7 @@ impl Rig {
                 met_path: met_path.into(),
                 boot_deadline_ms: boot_ms,
                 idle_exit_ms: idle_ms,
+                trust: self.trust.clone(),
             },
             blueprint: self.blueprint.clone(),
             blueprint_id: self.blueprint_id,
@@ -91,6 +96,15 @@ impl Rig {
             .status()
             .unwrap();
         p.display().to_string()
+    }
+
+    /// 2026-10-25: Each spawn's argv after the program name, as the fake recorded it.
+    fn argvs(&self) -> Vec<Vec<String>> {
+        std::fs::read_to_string(format!("{}.argv", self.blueprint))
+            .unwrap_or_default()
+            .lines()
+            .map(|l| l.split('\t').map(String::from).collect())
+            .collect()
     }
 
     fn pids(&self) -> Vec<u32> {
@@ -331,6 +345,79 @@ fn a_bad_met_path_or_blueprint_is_the_declared_unavailable_mode() {
     assert!(rig.pids().is_empty(), "nothing was spawned");
 }
 
+fn trust_flags_reach_met() {
+    let mut rig = Rig::new("trust", "good");
+    let anchor = rig.dir.join("kbp-root-dev.anchor");
+    std::fs::write(&anchor, b"fake dev root public key").unwrap();
+    let anchor = anchor.display().to_string();
+    let base = |rig: &Rig| {
+        [
+            "embed",
+            "--blueprint",
+            &rig.blueprint,
+            "--input-type",
+            "passage",
+            "--idle-exit-ms",
+            "0",
+        ]
+        .map(String::from)
+        .to_vec()
+    };
+    let mut want = Vec::new();
+    for (trust, tail) in [
+        (MetTrust::Production, vec!["--trust-mode", "production"]),
+        (
+            MetTrust::DevAnchor {
+                anchor: anchor.clone(),
+            },
+            vec!["--trust-mode", "dev-anchor", "--trust-anchor", &anchor],
+        ),
+    ] {
+        rig.trust = trust;
+        block(async {
+            let h = rig.host(10_000, 10_000, 0).await;
+            h.embed(Role::Document, &texts(1)).await.unwrap();
+        });
+        let mut argv = base(&rig);
+        argv.extend(tail.into_iter().map(String::from));
+        want.push(argv);
+    }
+    assert_eq!(rig.argvs(), want);
+}
+
+fn a_missing_or_non_file_trust_anchor_is_the_declared_unavailable_mode() {
+    let rig = Rig::new("anchor", "good");
+    let exe = std::env::current_exe().unwrap().display().to_string();
+    let missing = rig.dir.join("absent.anchor").display().to_string();
+    let dir = rig.dir.display().to_string();
+    block(async {
+        for (anchor, says) in [
+            (
+                missing.clone(),
+                format!("trust_anchor {missing} is unusable (NotFound)"),
+            ),
+            (
+                dir.clone(),
+                format!("trust_anchor {dir} is not a regular file"),
+            ),
+        ] {
+            let mut s = rig.settings(&exe, 1, 1, 0);
+            s.invocation = Invocation::Alias {
+                met_path: exe.clone(),
+                boot_deadline_ms: 1,
+                idle_exit_ms: 0,
+                trust: MetTrust::DevAnchor { anchor },
+            };
+            let Mode::Unavailable { reason } = MetLocal::open(&s, rig.dir.join("log")).await.mode()
+            else {
+                panic!("{says}: must be unavailable")
+            };
+            assert_eq!(reason, says);
+        }
+    });
+    assert!(rig.pids().is_empty(), "nothing was spawned");
+}
+
 fn more_inputs_than_max_batch_are_refused_unsent() {
     let rig = Rig::new("maxbatch", "good");
     block(async {
@@ -373,6 +460,11 @@ const CASES: &[(&str, fn())] = &[
         a_bad_met_path_or_blueprint_is_the_declared_unavailable_mode,
     ),
     ("max_batch", more_inputs_than_max_batch_are_refused_unsent),
+    ("trust_flags", trust_flags_reach_met),
+    (
+        "trust_anchor_unavailable",
+        a_missing_or_non_file_trust_anchor_is_the_declared_unavailable_mode,
+    ),
 ];
 
 fn main() {

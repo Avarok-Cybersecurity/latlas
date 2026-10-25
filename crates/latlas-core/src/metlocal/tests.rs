@@ -21,7 +21,11 @@ max_input_chars = 8000
 boot_deadline_ms = 30000
 request_deadline_ms = 60000
 idle_exit_ms = 0
+trust_mode = "dev-anchor"
+trust_anchor = "/etc/latlas/kbp-root-dev.anchor"
 "#;
+
+const ANCHOR: &str = "trust_anchor = \"/etc/latlas/kbp-root-dev.anchor\"";
 
 fn layer(t: &str) -> EmbedLayer {
     toml::from_str(t).unwrap()
@@ -59,7 +63,10 @@ fn an_alias_and_a_resident_config_resolve_with_the_sha_in_the_space() {
         Invocation::Alias {
             met_path: "/opt/met/met".into(),
             boot_deadline_ms: 30000,
-            idle_exit_ms: 0
+            idle_exit_ms: 0,
+            trust: MetTrust::DevAnchor {
+                anchor: "/etc/latlas/kbp-root-dev.anchor".into()
+            }
         }
     );
     assert_eq!(s.blueprint_id.hex(), SHA);
@@ -93,6 +100,7 @@ fn every_key_of_the_mode_is_required() {
         "boot_deadline_ms",
         "request_deadline_ms",
         "idle_exit_ms",
+        "trust_mode",
     ];
     for k in alias_keys {
         let e = err(&without(ALIAS, k));
@@ -116,8 +124,8 @@ fn a_key_of_the_other_invocation_or_of_http_is_refused() {
         "{e}"
     );
     for k in ALIAS_ONLY {
-        let line = if *k == "met_path" {
-            "met_path = \"/opt/met/met\"".to_string()
+        let line = if matches!(*k, "met_path" | "trust_mode" | "trust_anchor") {
+            format!("{k} = \"/opt/met/met\"")
         } else {
             format!("{k} = 1")
         };
@@ -206,4 +214,82 @@ fn models_url_sits_beside_the_embeddings_endpoint() {
         Some("http://127.0.0.1:1/v1/models")
     );
     assert_eq!(models_url("http://127.0.0.1:1/v1/other"), None);
+}
+
+fn alias_trust(t: &str) -> MetTrust {
+    let Embedder::MetLocal(s) = resolve_all(&layer(t)).unwrap() else {
+        panic!("must be met-local")
+    };
+    let Invocation::Alias { trust, .. } = s.invocation else {
+        panic!("must be alias")
+    };
+    trust
+}
+
+fn production() -> String {
+    without(ALIAS, "trust_anchor").replace("\"dev-anchor\"", "\"production\"")
+}
+
+#[test]
+fn trust_mode_production_resolves_and_refuses_a_trust_anchor() {
+    assert_eq!(alias_trust(&production()), MetTrust::Production);
+    let e = err(&format!("{}\n{ANCHOR}\n", production()));
+    assert!(
+        e.contains("embedder.trust_anchor") && e.contains("trust_mode production"),
+        "{e}"
+    );
+}
+
+#[test]
+fn trust_mode_dev_anchor_needs_an_absolute_trust_anchor() {
+    assert_eq!(
+        alias_trust(ALIAS),
+        MetTrust::DevAnchor {
+            anchor: "/etc/latlas/kbp-root-dev.anchor".into()
+        }
+    );
+    let e = err(&without(ALIAS, "trust_anchor"));
+    assert!(
+        e.contains("embedder.trust_anchor")
+            && e.contains("required")
+            && e.contains("trust_mode dev-anchor"),
+        "{e}"
+    );
+    let e = err(&ALIAS.replace(
+        "\"/etc/latlas/kbp-root-dev.anchor\"",
+        "\"kbp-root-dev.anchor\"",
+    ));
+    assert!(
+        e.contains("embedder.trust_anchor") && e.contains("absolute"),
+        "{e}"
+    );
+}
+
+#[test]
+fn an_unknown_or_missing_trust_mode_is_refused() {
+    for bad in ["dev", "none", "", "Production"] {
+        let e = err(&ALIAS.replace("\"dev-anchor\"", &format!("\"{bad}\"")));
+        assert!(
+            e.contains("embedder.trust_mode") && e.contains("is not production or dev-anchor"),
+            "{bad}: {e}"
+        );
+    }
+    let e = err(&without(ALIAS, "trust_mode"));
+    assert!(
+        e.contains("embedder.trust_mode") && e.contains("required"),
+        "{e}"
+    );
+}
+
+#[test]
+fn a_resident_config_refuses_the_trust_keys() {
+    let base = without(&without(&resident(), "trust_mode"), "trust_anchor");
+    for line in ["trust_mode = \"production\"", ANCHOR] {
+        let e = err(&format!("{base}\n{line}\n"));
+        let key = line.split(' ').next().unwrap();
+        assert!(
+            e.contains(&format!("embedder.{key}")) && e.contains("invocation resident"),
+            "{line}: {e}"
+        );
+    }
 }
