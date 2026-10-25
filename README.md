@@ -32,6 +32,7 @@ This is early software (0.1). The APIs and the config schemas (`latlas-project/v
 | `latlas-check` | Integrity score vector and ratchet |
 | `latlas-index` | LatticeDB-backed graph and vector index, read-only Cypher |
 | `latlas-host-native` | Native host: filesystem, git facts, OpenRouter-compatible embedder |
+| `latlas-host-met` | met-local embedder host: spawns the `met embed` alias or POSTs a resident `met serve` |
 | `latlas-cli` | CLI and MCP server library |
 | `latlas` | The `latlas` binary |
 | `latlas-web` | `wasm32-unknown-unknown` build with a JSON-in/JSON-out C ABI |

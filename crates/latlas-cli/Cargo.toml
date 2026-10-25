@@ -13,6 +13,7 @@ clap = { workspace = true, features = ["std", "derive", "help", "usage", "error-
 latlas-check = { workspace = true }
 latlas-core = { workspace = true }
 latlas-error = { workspace = true }
+latlas-host-met = { workspace = true }
 latlas-host-native = { workspace = true }
 latlas-index = { workspace = true }
 latlas-ports = { workspace = true }

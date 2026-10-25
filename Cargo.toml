@@ -19,13 +19,19 @@ latlas-decl = { path = "crates/latlas-decl" }
 latlas-adapters = { path = "crates/latlas-adapters" }
 latlas-cli = { path = "crates/latlas-cli" }
 latlas-host-native = { path = "crates/latlas-host-native" }
+latlas-host-met = { path = "crates/latlas-host-met" }
 latlas-index = { path = "crates/latlas-index" }
 lattice-core = { version = "=0.3.4", package = "latticedb-core", default-features = false }
 lattice-storage = { version = "=0.3.4", package = "latticedb-storage", default-features = false }
+base64 = { version = "0.23", default-features = false }
 anyhow = { version = "1", default-features = false }
 clap = { version = "4", default-features = false }
 rmcp = { version = "0.16", default-features = false }
 libm = { version = "0.2", default-features = false }
+# 2026-10-24: The `.kbp` body codecs met writes (kzx) and still reads (deflate), for the
+# met-local BlueprintId (latlas-core::kbp).
+kzx = { version = "=0.1.0", default-features = false }
+miniz_oxide = { version = "0.8", default-features = false }
 serde = { version = "1", default-features = false }
 serde_json = { version = "1", default-features = false }
 sha2 = { version = "0.11", default-features = false }
@@ -35,3 +41,9 @@ toml = { version = "1.1", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+
+# 2026-10-24: kzx is a bit-level context-mixing coder: unoptimized it takes over a minute to
+# decode one lite blueprint body, so dev and test builds optimize it. Codegen only: its output
+# is identical at every opt level.
+[profile.dev.package.kzx]
+opt-level = 3

@@ -81,6 +81,24 @@ error_registry! {
         /// input-length refusal when every input is within `max_input_chars`): (what it said and
         /// the request shape).
         LatlasEmbedderFault = 0x0124 => "embedder fault: {}",
+        /// 2026-10-24: The met-local host could not start its embedder process: (path, the
+        /// i/o error kind).
+        LatlasEmbedderSpawn = 0x0125 => "embedder process {} could not start: {}",
+        /// 2026-10-24: The embedder did not answer in time; the process is killed: (`boot` or
+        /// `request`, the configured deadline).
+        LatlasEmbedderDeadline = 0x0126 => "embedder {} deadline {} ms passed",
+        /// 2026-10-24: The embedder process exited before it answered: (its exit status, the last
+        /// line of its stderr, which carries met's own CERF code).
+        LatlasEmbedderExit = 0x0127 => "embedder process exited {}: {}",
+        /// 2026-10-24: A frame of the met alias protocol (or a resident body) outside the
+        /// protocol: (which frame, what is wrong: length, header, truncated stream).
+        LatlasEmbedFrame = 0x0128 => "embedder frame {}: {}",
+        /// 2026-10-24: The embedder answered for another vector space than the config declares
+        /// (blueprint sha, model or prefix echo): (what it answered, what the config declares).
+        LatlasEmbedSpace = 0x0129 => "embedder answered in space {}; the config declares {}",
+        /// 2026-10-24: A `.kbp` blueprint the met-local host refuses before it derives the
+        /// BlueprintId (header, caps, codec, raw-body hash): (what, why).
+        LatlasBlueprint = 0x012A => "blueprint {}: {}",
         /// 2026-10-23: A Cypher text `la_query` refuses: (reason).
         LatlasCypherRejected = 0x0130 => "cypher refused: {}",
         /// 2026-10-23: A graph store operation failed: (operation, reason).

@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: MIT OR Apache-2.0
+[package]
+name = "latlas-host-met"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Latlas: the met-local embedder host: spawns the `met embed` alias over length-prefixed frames, or POSTs a resident `met serve`. The only crate that runs `met`."
+
+[dependencies]
+latlas-core = { workspace = true }
+latlas-error = { workspace = true }
+rustix = { version = "1.1", default-features = false, features = ["std", "process"] }
+tokio = { workspace = true, features = ["rt", "time", "process", "io-util", "sync"] }
+ureq = { workspace = true, features = ["rustls"] }
+
+# 2026-10-24: tests/alias.rs is its own `main` (harness = false) so the test binary can also be
+# the fake `met` it spawns; tests/resident.rs serves a scripted loopback endpoint.
+[dev-dependencies]
+base64 = { workspace = true, features = ["alloc"] }
+serde_json = { workspace = true, features = ["std"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util", "io-std", "time"] }
+
+[[test]]
+name = "alias"
+path = "tests/alias.rs"
+harness = false
+
+[lints]
+workspace = true

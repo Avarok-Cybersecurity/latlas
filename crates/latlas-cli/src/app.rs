@@ -9,14 +9,17 @@
 //! - Every tool result carries `bundle_digest`, `derived_at_ms`, `stale` and `mode`.
 //! - The store only ever holds the current bundle (`Store::load` replaces).
 
+use crate::embedhost::EmbedHost;
 use crate::host::PackHost;
 use crate::search::Embed;
 use anyhow::Result;
 use latlas_core::embed::{Embedder as _, Mode, Plan};
 use latlas_core::jsonl::digest;
+use latlas_core::metlocal::MET_ATTEMPTS;
 use latlas_core::settings::Embedder;
 use latlas_core::status::Freshness;
 use latlas_core::{Bundle, Config, Pack, SourceSet, derive};
+use latlas_host_met::MetLocal;
 use latlas_host_native::clock::SystemClock;
 use latlas_host_native::fs::{FsSources, Stamp, read_config};
 use latlas_host_native::openrouter::OpenRouter;
@@ -59,24 +62,39 @@ fn newest(stamp: &Stamp) -> Option<(String, i64)> {
 }
 
 /// 2026-10-23: The embedder host for the resolved settings: off with the reason when the settings
-/// declare it unavailable or the host cannot run (no key), else the host and its cache under
-/// `dir`.
+/// declare it unavailable or the host cannot run (no key; 2026-10-24: or met-local's preflight
+/// refused), else the host and its cache under `dir`.
 async fn open_embed(e: &Embedder, dir: &Path) -> Result<Embed> {
-    let s = match e {
+    let (host, space, dim, plan) = match e {
         Embedder::Unavailable { reason } => return Ok(Embed::Off(reason.clone())),
-        Embedder::Available(s) => s,
+        Embedder::Available(s) => (
+            EmbedHost::Http(OpenRouter::new(s, dir.join("embed-calls.jsonl"))),
+            s.space(),
+            s.dimensions,
+            Plan {
+                batch: usize::try_from(s.batch)?,
+                max_attempts: s.max_attempts,
+                backoff_ms: s.backoff_ms,
+                max_input_chars: usize::try_from(s.max_input_chars)?,
+            },
+        ),
+        Embedder::MetLocal(s) => (
+            EmbedHost::MetLocal(MetLocal::open(s, dir.join("embed-met.stderr.log")).await),
+            s.space(),
+            s.dimensions,
+            Plan {
+                batch: usize::try_from(s.max_batch)?,
+                max_attempts: MET_ATTEMPTS,
+                // 2026-10-24: Never waited on: met-local never answers `Reply::Retryable`.
+                backoff_ms: 0,
+                max_input_chars: usize::try_from(s.max_input_chars)?,
+            },
+        ),
     };
-    let host = OpenRouter::new(s, dir.join("embed-calls.jsonl"));
     if let Mode::Unavailable { reason } = host.mode() {
         return Ok(Embed::Off(reason));
     }
-    let cache = TextStore::open(dir, &s.space(), s.dimensions).await?;
-    let plan = Plan {
-        batch: usize::try_from(s.batch)?,
-        max_attempts: s.max_attempts,
-        backoff_ms: s.backoff_ms,
-        max_input_chars: usize::try_from(s.max_input_chars)?,
-    };
+    let cache = TextStore::open(dir, &space, dim).await?;
     Ok(Embed::On {
         host,
         cache: Arc::new(Mutex::new(cache)),

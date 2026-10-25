@@ -28,6 +28,12 @@
 0x0122 LatlasEmbedProtocol
 0x0123 LatlasEmbedDim
 0x0124 LatlasEmbedderFault
+0x0125 LatlasEmbedderSpawn
+0x0126 LatlasEmbedderDeadline
+0x0127 LatlasEmbedderExit
+0x0128 LatlasEmbedFrame
+0x0129 LatlasEmbedSpace
+0x012a LatlasBlueprint
 0x0130 LatlasCypherRejected
 0x0131 LatlasStore
 0x0132 LatlasToolArgument
