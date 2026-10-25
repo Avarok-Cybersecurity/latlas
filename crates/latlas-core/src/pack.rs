@@ -14,6 +14,7 @@ use crate::bundle::{Builder, Bundle};
 use crate::config::Config;
 use crate::id::{Label, NodeId, Rel, Vocab};
 use crate::prelude::*;
+use crate::record_schema::KindSchema;
 use crate::sources::SourceSet;
 use crate::status::Freshness;
 use latlas_error::Result;
@@ -50,8 +51,9 @@ pub trait Pack: Vocab + Sized {
     const SECTIONS: &'static [&'static str];
     /// The pack sections of a default status (none named).
     const DEFAULT_SECTIONS: &'static [&'static str];
-    /// The record kinds `la_record` accepts.
-    const RECORD_KINDS: &'static [&'static str];
+    /// The record kinds `la_record` accepts, each with its columns, fill rules and grammar
+    /// (served as the `record_schema` status section).
+    const RECORD_SCHEMAS: &'static [KindSchema];
     /// The server instructions sent at `initialize`.
     const INSTRUCTIONS: &'static str;
     /// One-line description of the `la_status` tool.

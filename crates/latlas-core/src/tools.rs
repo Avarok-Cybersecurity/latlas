@@ -41,7 +41,10 @@ pub fn tools<P: Pack>() -> Vec<Value> {
         .iter()
         .map(|s| format!("\"{s}\""))
         .collect();
-    let kinds: Vec<String> = P::RECORD_KINDS.iter().map(|s| format!("\"{s}\"")).collect();
+    let kinds: Vec<String> = P::RECORD_SCHEMAS
+        .iter()
+        .map(|s| format!("\"{}\"", s.kind))
+        .collect();
     vec![
         tool(
             "la_query",
@@ -60,7 +63,7 @@ pub fn tools<P: Pack>() -> Vec<Value> {
         ),
         tool(
             "la_record",
-            "Append a record to its SSOT file through its validator; fails closed. dry_run previews would_taint.",
+            "Append a record to its SSOT file via its validator; fails closed. Columns: la_status sections [record_schema]. dry_run previews.",
             &format!(
                 r#"{{"type":"object","required":["kind","scope","fields"],"properties":{{"kind":{{"enum":[{}]}},"scope":{{"type":"string"}},"fields":{{"type":"object"}},"dry_run":{{"type":"boolean"}},"acknowledge_taint":{{"type":"integer"}}}}}}"#,
                 kinds.join(",")

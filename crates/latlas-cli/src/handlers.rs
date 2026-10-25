@@ -14,7 +14,7 @@ use latlas_core::Pack;
 use latlas_core::id::{Rel, rel_by_name, rels};
 use latlas_core::queries::{self, impact};
 use latlas_core::status::status;
-use latlas_core::tools::{DEFAULT_MAX_DEPTH, DEFAULT_QUERY_LIMIT};
+use latlas_core::tools::{DEFAULT_MAX_DEPTH, DEFAULT_QUERY_LIMIT, tools};
 use latlas_error::{ErrorCode, Result, error};
 use latlas_index::cypher;
 use serde_json::{Map, Value};
@@ -113,24 +113,44 @@ pub async fn call<P: Pack, H: PackHost<P>>(
         }
         "la_search" => crate::search::la_search(app, args).await?,
         "la_record" => {
+            let now = app.now();
             let (v, written) = app
                 .host
-                .record(&app.cfg, &app.fs, &app.bundle, args)
+                .record(&app.cfg, &app.fs, &app.bundle, args, now)
                 .await?;
             if written {
                 app.refresh().await;
             }
             v
         }
-        other => {
-            return Err(error!(
-                ErrorCode::LatlasToolArgument,
-                "name",
-                format!("no tool {other}")
-            ));
-        }
+        other => return Err(no_tool::<P>(other)),
     };
     Ok(app.envelope(body))
+}
+
+/// 2026-10-24: The refusal of an unknown tool name: it lists the served tools, and a pre-rename
+/// `kg_*` name says which `la_*` tool replaced it.
+pub fn no_tool<P: Pack>(name: &str) -> latlas_error::Error {
+    let served: Vec<String> = tools::<P>()
+        .iter()
+        .filter_map(|t| t.get("name").and_then(Value::as_str).map(str::to_string))
+        .collect();
+    no_tool_in(name, &served)
+}
+
+fn no_tool_in(name: &str, served: &[String]) -> latlas_error::Error {
+    let renamed = name
+        .strip_prefix("kg_")
+        .map(|rest| format!("la_{rest}"))
+        .filter(|n| served.contains(n))
+        .map_or(String::new(), |n| {
+            format!("; the kg_* tools were renamed la_* on 2026-10-23: use {n}")
+        });
+    error!(
+        ErrorCode::LatlasToolArgument,
+        "name",
+        format!("no tool {name}; tools: {}{renamed}", served.join(", "))
+    )
 }
 
 async fn la_query<P: Pack, H: PackHost<P>>(app: &mut App<P, H>, args: &Value) -> Result<Value> {
@@ -215,4 +235,26 @@ fn la_impact<P: Pack, H: PackHost<P>>(app: &App<P, H>, args: &Value) -> Result<V
     o.insert("paths_truncated".into(), Value::Bool(cut));
     P::impact_extra(b, &app.cfg, &root, &mut o)?;
     Ok(Value::Object(o))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::no_tool_in;
+
+    #[test]
+    fn an_unknown_tool_lists_the_tools_and_maps_a_pre_rename_name() {
+        let served: Vec<String> = ["la_search", "la_record"].map(String::from).to_vec();
+        let old = no_tool_in("kg_record", &served).to_string();
+        assert!(
+            old.contains("no tool kg_record; tools: la_search, la_record"),
+            "{old}"
+        );
+        assert!(
+            old.contains("renamed la_* on 2026-10-23: use la_record"),
+            "{old}"
+        );
+        let other = no_tool_in("kg_bogus", &served).to_string();
+        assert!(other.contains("tools: la_search, la_record"), "{other}");
+        assert!(!other.contains("renamed"), "{other}");
+    }
 }

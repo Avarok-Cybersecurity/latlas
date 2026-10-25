@@ -109,6 +109,11 @@ pub fn open_hosts<P: Pack, H: PackHost<P>>(
 }
 
 impl<P: Pack, H: PackHost<P>> App<P, H> {
+    /// 2026-10-24: The Clock port's wall time (what `la_record`'s time fills read).
+    pub fn now(&self) -> latlas_ports::UnixMs {
+        self.clock.now_unix_ms()
+    }
+
     fn stamps(cfg: &Config<P::Sources>, fs: &FsSources, host: &H) -> Result<(Stamp, Stamp)> {
         let extra = host.extra_files(cfg, fs)?;
         Ok((fs.stamp::<P>(cfg, &extra)?, host.extra_stamp(cfg, fs)?))

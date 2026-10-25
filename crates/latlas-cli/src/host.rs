@@ -9,6 +9,7 @@
 
 use latlas_core::{Bundle, Config, Pack};
 use latlas_host_native::fs::{FsSources, Stamp};
+use latlas_ports::UnixMs;
 use serde_json::Value;
 
 /// 2026-10-23: The process side of a pack.
@@ -27,7 +28,8 @@ pub trait PackHost<P: Pack>: Sized {
         fs: &FsSources,
     ) -> anyhow::Result<(Option<P::Facts>, Option<String>)>;
     /// `la_record`: write one record through its validator (fails closed). Returns the answer
-    /// and whether a file was written (then the app re-derives).
+    /// and whether a file was written (then the app re-derives). `now` is the Clock port's
+    /// reading, the only time a declared fill rule (`Fill::NowUtcMinute`) may use.
     /// The future is `Send`: the MCP server answers on a multi-task runtime.
     fn record(
         &self,
@@ -35,5 +37,6 @@ pub trait PackHost<P: Pack>: Sized {
         fs: &FsSources,
         bundle: &Bundle,
         args: &Value,
+        now: UnixMs,
     ) -> impl core::future::Future<Output = latlas_error::Result<(Value, bool)>> + Send;
 }

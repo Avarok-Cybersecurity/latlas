@@ -445,6 +445,7 @@ dependencies = [
  "latlas-decl",
  "latlas-error",
  "latlas-host-native",
+ "latlas-ports",
  "serde_json",
  "tokio",
 ]

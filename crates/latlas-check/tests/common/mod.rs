@@ -31,7 +31,7 @@ impl Pack for Adr {
     const IMPACT_FOLLOW_OUT: &'static [Rel] = &[];
     const SECTIONS: &'static [&'static str] = &[];
     const DEFAULT_SECTIONS: &'static [&'static str] = &[];
-    const RECORD_KINDS: &'static [&'static str] = &[];
+    const RECORD_SCHEMAS: &'static [latlas_core::record_schema::KindSchema] = &[];
     const INSTRUCTIONS: &'static str = "";
     const STATUS_DESCRIPTION: &'static str = "";
     const IMPACT_DESCRIPTION: &'static str = "";
