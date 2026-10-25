@@ -164,7 +164,7 @@ fn relative_paths_a_bad_sha_and_a_remote_endpoint_are_refused() {
     let e = err(&ALIAS.replace(SHA, &SHA[..63]));
     assert!(e.contains("embedder.blueprint_id"), "{e}");
     for bad in [
-        "http://10.0.0.1:18471/v1/embeddings",
+        "http://192.0.2.1:18471/v1/embeddings",
         "http://127.0.0.1.evil.com/v1/embeddings",
         "ftp://127.0.0.1/v1/embeddings",
         "http://127.0.0.1:18471/v1/chat/completions",
